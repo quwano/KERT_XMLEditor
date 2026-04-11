@@ -7,7 +7,7 @@ interface Props {
   onChange: (blocks: Block[]) => void
 }
 
-export default function DocumentEditor({ blocks, onChange }: Props): JSX.Element {
+export default function DocumentEditor({ blocks, onChange }: Props): React.ReactElement {
   return (
     <div className="document-editor">
       <BlockList blocks={blocks} onChange={onChange} />

@@ -5,7 +5,7 @@ import { validateXml } from './utils/xmlValidator'
 import { useHistory } from './hooks/useHistory'
 import type { Block } from './types/document'
 
-export default function App(): JSX.Element {
+export default function App(): React.ReactElement {
   const { value: blocks, set: setBlocks, reset: resetBlocks, undo, redo, canUndo, canRedo } =
     useHistory<Block[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -13,6 +13,10 @@ export default function App(): JSX.Element {
   // ── Keyboard shortcuts ─────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
+      // Let Slate's built-in history handle undo/redo inside rich-text editors
+      const active = document.activeElement
+      if (active && active.closest('[data-slate-editor]')) return
+
       const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform)
       const mod = isMac ? e.metaKey : e.ctrlKey
       if (!mod) return

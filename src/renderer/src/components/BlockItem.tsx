@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
-import type { Block, TableBlock, TableRow } from '../types/document'
+import type { Block, RichBlock, TableBlock, TableRow, SlateValue } from '../types/document'
+import { makeEmptySlateValue, EMPTY_SLATE_VALUE } from '../types/document'
+import RichTextEditor from './RichTextEditor'
 
 const BLOCK_LABELS: Record<string, string> = {
   title1: '見出し1', title2: '見出し2', title3: '見出し3',
@@ -13,12 +15,20 @@ interface Props {
   onRemove: () => void
   onMoveUp: () => void
   onMoveDown: () => void
-  onTableChange: (updated: TableBlock) => void
+  onChange: (updated: Block) => void
 }
 
 export default function BlockItem({
-  block, isFirst, isLast, onRemove, onMoveUp, onMoveDown, onTableChange
-}: Props): JSX.Element {
+  block, isFirst, isLast, onRemove, onMoveUp, onMoveDown, onChange
+}: Props): React.ReactElement {
+  const handleRichChange = (content: SlateValue): void => {
+    onChange({ ...(block as RichBlock), content })
+  }
+
+  const handleTableChange = (updated: TableBlock): void => {
+    onChange(updated)
+  }
+
   return (
     <div className={`block-item block-type-${block.type}`}>
       <div className="block-controls">
@@ -29,9 +39,13 @@ export default function BlockItem({
       </div>
       <div className="block-content">
         {block.type === 'table' ? (
-          <TableEditor block={block as TableBlock} onChange={onTableChange} />
+          <TableEditor block={block as TableBlock} onChange={handleTableChange} />
         ) : (
-          <div className="text-placeholder">（テキストコンテンツ — Phase 4 で実装）</div>
+          <RichTextEditor
+            value={(block as RichBlock).content ?? EMPTY_SLATE_VALUE}
+            onChange={handleRichChange}
+            placeholder={`${BLOCK_LABELS[block.type]} のテキストを入力…`}
+          />
         )}
       </div>
     </div>
@@ -46,14 +60,12 @@ function genId(): string {
 
 // ── TableEditor ────────────────────────────────────────────────────────────
 
-function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: TableBlock) => void }): JSX.Element {
+function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: TableBlock) => void }): React.ReactElement {
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [selectedCol, setSelectedCol] = useState<number | null>(null)
 
   const colCount = block.rows[0]?.cells.length ?? 0
-  /** true when no row in the table contains any th cell */
   const hasHeaderRow = block.rows.some(row => row.cells.some(c => c.isHeader))
-  /** true when the currently selected row is the first row */
   const isFirstRowSelected = selectedRow !== null && selectedRow === block.rows[0]?.id
 
   const selectRow = (id: string): void => {
@@ -78,7 +90,9 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
       ...block,
       rows: [...block.rows, {
         id: genId(),
-        cells: Array.from({ length: colCount }, () => ({ id: genId(), isHeader: false }))
+        cells: Array.from({ length: colCount }, () => ({
+          id: genId(), isHeader: false, content: makeEmptySlateValue()
+        }))
       }]
     })
   }
@@ -89,7 +103,9 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
     if (idx < 0) return
     const newRow: TableRow = {
       id: genId(),
-      cells: Array.from({ length: colCount }, () => ({ id: genId(), isHeader: false }))
+      cells: Array.from({ length: colCount }, () => ({
+        id: genId(), isHeader: false, content: makeEmptySlateValue()
+      }))
     }
     const newRows = [...block.rows]
     newRows.splice(position === 'above' ? idx : idx + 1, 0, newRow)
@@ -102,22 +118,16 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
     setSelectedRow(null)
   }
 
-  /**
-   * Insert a new header row (th cells) at the very top of the table.
-   * Only available when no header row exists.
-   */
   const addHeaderRowAtTop = (): void => {
     const newRow: TableRow = {
       id: genId(),
-      cells: Array.from({ length: colCount }, () => ({ id: genId(), isHeader: true }))
+      cells: Array.from({ length: colCount }, () => ({
+        id: genId(), isHeader: true, content: makeEmptySlateValue()
+      }))
     }
     onChange({ ...block, rows: [newRow, ...block.rows] })
   }
 
-  /**
-   * Convert all cells in the first row from td → th.
-   * Only available when the first row is selected and no header row exists.
-   */
   const convertFirstRowToHeader = (): void => {
     onChange({
       ...block,
@@ -141,12 +151,15 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
         ...row,
         cells: [
           ...row.cells.slice(0, insertAt),
-          { id: genId(), isHeader: ri === 0 && row.cells.some(c => c.isHeader) },
+          {
+            id: genId(),
+            isHeader: ri === 0 && row.cells.some(c => c.isHeader),
+            content: makeEmptySlateValue()
+          },
           ...row.cells.slice(insertAt)
         ]
       }))
     })
-    // Keep selection tracking the original column
     setSelectedCol(position === 'left' ? selectedCol + 1 : selectedCol)
   }
 
@@ -162,6 +175,22 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
     setSelectedCol(null)
   }
 
+  // ── Cell content change ─────────────────────────────────────────────────
+
+  const handleCellChange = (rowId: string, cellId: string, content: SlateValue): void => {
+    onChange({
+      ...block,
+      rows: block.rows.map(row =>
+        row.id !== rowId ? row : {
+          ...row,
+          cells: row.cells.map(cell =>
+            cell.id !== cellId ? cell : { ...cell, content }
+          )
+        }
+      )
+    })
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
@@ -170,7 +199,6 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
       <div className="table-toolbar">
         <button onClick={appendRow} className="btn-sm">＋ 行を追加（末尾）</button>
 
-        {/* Show when no header row exists */}
         {!hasHeaderRow && (
           <button onClick={addHeaderRowAtTop} className="btn-sm btn-header">
             ＋ 先頭に見出し行を追加
@@ -182,7 +210,6 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
             <span className="selection-label">行を選択中</span>
             <button onClick={() => insertRow('above')} className="btn-sm btn-action">↑ 上に追加</button>
             <button onClick={() => insertRow('below')} className="btn-sm btn-action">↓ 下に追加</button>
-            {/* Convert first row to header — only when no header row and first row is selected */}
             {!hasHeaderRow && isFirstRowSelected && (
               <button onClick={convertFirstRowToHeader} className="btn-sm btn-header">
                 見出し行に変換
@@ -244,23 +271,21 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
                 >
                   ▶
                 </td>
-                {row.cells.map((cell, ci) =>
-                  cell.isHeader ? (
-                    <th
+                {row.cells.map((cell, ci) => {
+                  const Tag = cell.isHeader ? 'th' : 'td'
+                  return (
+                    <Tag
                       key={cell.id}
-                      className={`cell-placeholder${selectedCol === ci ? ' selected-col' : ''}`}
+                      className={`cell-rte${selectedCol === ci ? ' selected-col' : ''}`}
                     >
-                      （見出しセル）
-                    </th>
-                  ) : (
-                    <td
-                      key={cell.id}
-                      className={`cell-placeholder${selectedCol === ci ? ' selected-col' : ''}`}
-                    >
-                      （セル）
-                    </td>
+                      <RichTextEditor
+                        value={cell.content ?? EMPTY_SLATE_VALUE}
+                        onChange={content => handleCellChange(row.id, cell.id, content)}
+                        placeholder="セル"
+                      />
+                    </Tag>
                   )
-                )}
+                })}
               </tr>
             ))}
           </tbody>

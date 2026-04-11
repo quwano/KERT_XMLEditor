@@ -1,10 +1,15 @@
+import type { SlateValue } from './slate'
+export type { SlateValue }
+export { EMPTY_SLATE_VALUE, makeEmptySlateValue } from './slate'
+
 export type RichBlockType = 'title1' | 'title2' | 'title3' | 'title4' | 'title5' | 'p'
 export type BlockType = RichBlockType | 'table'
 
 export interface RichBlock {
   id: string
   type: RichBlockType
-  // Phase 4: slateValue will be added here
+  /** Slate value representing the block's rich-text content. */
+  content: SlateValue
 }
 
 export interface TableBlock {
@@ -21,7 +26,8 @@ export interface TableRow {
 export interface TableCell {
   id: string
   isHeader: boolean
-  // Phase 4: slateValue will be added here
+  /** Slate value for cell rich-text content. */
+  content: SlateValue
 }
 
 export type Block = RichBlock | TableBlock

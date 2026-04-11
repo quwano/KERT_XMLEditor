@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react'
-import type { Block, BlockType, TableBlock, TableRow, TableCell } from '../types/document'
+import type { Block, BlockType, TableRow, TableCell } from '../types/document'
+import { makeEmptySlateValue } from '../types/document'
 import BlockItem from './BlockItem'
 
 const BLOCK_LABELS: Record<BlockType, string> = {
@@ -18,7 +19,7 @@ interface Props {
   onChange: (blocks: Block[]) => void
 }
 
-export default function BlockList({ blocks, onChange }: Props): JSX.Element {
+export default function BlockList({ blocks, onChange }: Props): React.ReactElement {
   /** Index at which to insert the next block (null = no active separator). */
   const [insertAt, setInsertAt] = useState<number | null>(null)
   /** Whether the table-creation form is waiting for row/col input. */
@@ -39,7 +40,7 @@ export default function BlockList({ blocks, onChange }: Props): JSX.Element {
       setPendingTable(true)
       return
     }
-    insertBlock({ id: genId(), type }, insertAt)
+    insertBlock({ id: genId(), type, content: makeEmptySlateValue() }, insertAt)
     setInsertAt(null)
   }, [insertAt, insertBlock])
 
@@ -49,7 +50,8 @@ export default function BlockList({ blocks, onChange }: Props): JSX.Element {
       id: genId(),
       cells: Array.from({ length: Math.max(1, tableCols) }, (): TableCell => ({
         id: genId(),
-        isHeader: ri === 0
+        isHeader: ri === 0,
+        content: makeEmptySlateValue()   // fresh object per cell — avoids Slate WeakMap collision
       }))
     }))
     insertBlock({ id: genId(), type: 'table', rows }, insertAt)
@@ -84,7 +86,7 @@ export default function BlockList({ blocks, onChange }: Props): JSX.Element {
   }, [blocks, onChange])
 
   // ── Separator renderer ─────────────────────────────────────────────────
-  const renderSeparator = (index: number): JSX.Element => {
+  const renderSeparator = (index: number): React.ReactElement => {
     if (insertAt === index) {
       return (
         <div className="insert-separator active">
@@ -138,7 +140,7 @@ export default function BlockList({ blocks, onChange }: Props): JSX.Element {
                 onRemove={() => removeBlock(block.id)}
                 onMoveUp={() => moveBlock(block.id, 'up')}
                 onMoveDown={() => moveBlock(block.id, 'down')}
-                onTableChange={updateBlock}
+                onChange={updateBlock}
               />
               {renderSeparator(idx + 1)}
             </React.Fragment>
