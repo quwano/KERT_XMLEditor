@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+release/
+
+# TypeScript compiled output (*.ts sources are the originals)
+src/**/*.js
+src/**/*.d.ts
+# Exception: handwritten ambient declaration files (not compiled from .ts)
+!src/renderer/src/types/electron.d.ts
+electron-vite.config.js
+electron-vite.config.d.ts
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code memory (private)
+.claude/

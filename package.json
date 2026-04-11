@@ -1,0 +1,46 @@
+{
+  "name": "kert-xml-editor",
+  "version": "1.0.0",
+  "description": "XML editor for KERT documents",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "slate": "^0.124.0",
+    "slate-react": "^0.124.0",
+    "slate-history": "^0.113.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.4"
+  },
+  "build": {
+    "appId": "com.kert.xml-editor",
+    "productName": "KERT XML Editor",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "private": true
+}
