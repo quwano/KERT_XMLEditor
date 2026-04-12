@@ -67,6 +67,7 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
   const colCount = block.rows[0]?.cells.length ?? 0
   const hasHeaderRow = block.rows.some(row => row.cells.some(c => c.isHeader))
   const isFirstRowSelected = selectedRow !== null && selectedRow === block.rows[0]?.id
+  const isLastRowSelected  = selectedRow !== null && selectedRow === block.rows[block.rows.length - 1]?.id
 
   const selectRow = (id: string): void => {
     setSelectedCol(null)
@@ -116,6 +117,17 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
     if (!selectedRow || block.rows.length <= 1) return
     onChange({ ...block, rows: block.rows.filter(r => r.id !== selectedRow) })
     setSelectedRow(null)
+  }
+
+  const moveRow = (direction: 'up' | 'down'): void => {
+    if (!selectedRow) return
+    const idx = block.rows.findIndex(r => r.id === selectedRow)
+    if (idx < 0) return
+    const swap = direction === 'up' ? idx - 1 : idx + 1
+    if (swap < 0 || swap >= block.rows.length) return
+    const newRows = [...block.rows]
+    ;[newRows[idx], newRows[swap]] = [newRows[swap], newRows[idx]]
+    onChange({ ...block, rows: newRows })
   }
 
   const addHeaderRowAtTop = (): void => {
@@ -175,6 +187,21 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
     setSelectedCol(null)
   }
 
+  const moveCol = (direction: 'left' | 'right'): void => {
+    if (selectedCol === null) return
+    const swap = direction === 'left' ? selectedCol - 1 : selectedCol + 1
+    if (swap < 0 || swap >= colCount) return
+    onChange({
+      ...block,
+      rows: block.rows.map(row => {
+        const cells = [...row.cells]
+        ;[cells[selectedCol], cells[swap]] = [cells[swap], cells[selectedCol]]
+        return { ...row, cells }
+      })
+    })
+    setSelectedCol(swap)
+  }
+
   // ── Cell content change ─────────────────────────────────────────────────
 
   const handleCellChange = (rowId: string, cellId: string, content: SlateValue): void => {
@@ -208,6 +235,8 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
         {selectedRow !== null && (
           <div className="table-action-group">
             <span className="selection-label">行を選択中</span>
+            <button onClick={() => moveRow('up')}   disabled={isFirstRowSelected}  className="btn-sm btn-action">↑ 上に移動</button>
+            <button onClick={() => moveRow('down')}  disabled={isLastRowSelected}   className="btn-sm btn-action">↓ 下に移動</button>
             <button onClick={() => insertRow('above')} className="btn-sm btn-action">↑ 上に追加</button>
             <button onClick={() => insertRow('below')} className="btn-sm btn-action">↓ 下に追加</button>
             {!hasHeaderRow && isFirstRowSelected && (
@@ -229,6 +258,8 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
         {selectedCol !== null && (
           <div className="table-action-group">
             <span className="selection-label">列 {selectedCol + 1} を選択中</span>
+            <button onClick={() => moveCol('left')}  disabled={selectedCol === 0}           className="btn-sm btn-action">← 左に移動</button>
+            <button onClick={() => moveCol('right')} disabled={selectedCol === colCount - 1} className="btn-sm btn-action">→ 右に移動</button>
             <button onClick={() => insertCol('left')} className="btn-sm btn-action">← 左に追加</button>
             <button onClick={() => insertCol('right')} className="btn-sm btn-action">→ 右に追加</button>
             <button
