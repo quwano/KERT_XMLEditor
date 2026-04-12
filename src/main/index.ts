@@ -14,8 +14,22 @@ function createWindow(): void {
 
   // ── 未保存確認 ──────────────────────────────────────────────────────────
   let closeConfirmed = false
-  mainWindow.on('close', (e) => {
+  let isQuitting = false
+
+  // Cmd+Q / メニューの Quit → before-quit で捕捉
+  app.on('before-quit', (e) => {
     if (!closeConfirmed) {
+      e.preventDefault()
+      isQuitting = true
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app:close-requested')
+      }
+    }
+  })
+
+  // ウィンドウの閉じるボタン → close で捕捉（before-quit が先に動いた場合は skip）
+  mainWindow.on('close', (e) => {
+    if (!closeConfirmed && !isQuitting) {
       e.preventDefault()
       mainWindow.webContents.send('app:close-requested')
     }
@@ -24,7 +38,13 @@ function createWindow(): void {
   ipcMain.on('app:close-confirmed', (_, shouldClose: boolean) => {
     if (shouldClose) {
       closeConfirmed = true
-      mainWindow.close()
+      if (isQuitting) {
+        app.quit()
+      } else if (!mainWindow.isDestroyed()) {
+        mainWindow.close()
+      }
+    } else {
+      isQuitting = false
     }
   })
 
@@ -56,6 +76,7 @@ ipcMain.handle('file:save', async (_, xmlContent: string) => {
 })
 
 app.whenReady().then(() => {
+  app.setAboutPanelOptions({ copyright: '2026 KUWANO KAZUYUKI' })
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

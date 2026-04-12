@@ -29,6 +29,9 @@
   "build": {
     "appId": "com.kert.xml-editor",
     "productName": "KERT XML Editor",
+    "copyright": "2026 KUWANO KAZUYUKI",
+    "icon": "resources/icon.png",
+    "asar": true,
     "directories": {
       "output": "release"
     },
@@ -36,10 +39,11 @@
       "out/**/*"
     ],
     "mac": {
-      "target": "dmg"
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "category": "public.app-category.productivity"
     },
     "win": {
-      "target": "nsis"
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
     }
   },
   "private": true
