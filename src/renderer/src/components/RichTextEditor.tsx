@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createEditor, Editor, Element as SlateElement, Path, Range, Transforms } from 'slate'
+import { createEditor, Editor, Element as SlateElement, Path, Range, Text, Transforms } from 'slate'
 import { Editable, ReactEditor, Slate, withReact } from 'slate-react'
 import type { RenderElementProps, RenderLeafProps } from 'slate-react'
 import { withHistory } from 'slate-history'
@@ -57,8 +57,8 @@ function Leaf({ attributes, children, leaf }: RenderLeafProps): React.ReactEleme
 
 type ChipDialogState =
   | { mode: 'closed' }
-  | { mode: 'insert-yomikae'; capturedSelection: Range; value: string; yomi: string }
-  | { mode: 'insert-ruby';    capturedSelection: Range; value: string; yomi: string }
+  | { mode: 'insert-yomikae'; capturedSelection: Range; value: string; yomi: string; marks: Partial<Record<MarkType, boolean>> }
+  | { mode: 'insert-ruby';    capturedSelection: Range; value: string; yomi: string; marks: Partial<Record<MarkType, boolean>> }
   | { mode: 'insert-img';     src: string; alt: string }
   | { mode: 'edit-yomikae';   path: Path; value: string; yomi: string }
   | { mode: 'edit-ruby';      path: Path; value: string; yomi: string }
@@ -146,11 +146,20 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
       if (!sel || Range.isCollapsed(sel)) return
       const capturedSelection = { anchor: { ...sel.anchor }, focus: { ...sel.focus } }
       const capturedText = Editor.string(editor, sel)
+      const marks: Partial<Record<MarkType, boolean>> = {}
+      for (const [node] of Editor.nodes(editor, { at: sel, match: n => Text.isText(n) })) {
+        const leaf = node as CustomText
+        if (leaf.g)   marks.g   = true
+        if (leaf.u)   marks.u   = true
+        if (leaf.sup) marks.sup = true
+        if (leaf.sub) marks.sub = true
+      }
       setChipDialog({
         mode: `insert-${type}` as 'insert-yomikae' | 'insert-ruby',
         capturedSelection,
         value: capturedText,
-        yomi: ''
+        yomi: '',
+        marks
       })
     },
     [editor]
@@ -207,7 +216,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
       Transforms.delete(editor, { at: state.capturedSelection })
       Transforms.insertNodes(
         editor,
-        { type: chipType, value: state.value, yomi: state.yomi, children: [{ text: '' }] },
+        { type: chipType, value: state.value, yomi: state.yomi, ...state.marks, children: [{ text: '' }] },
         { at: insertAt }
       )
     } else if (state.mode === 'insert-img') {
