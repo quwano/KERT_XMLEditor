@@ -213,12 +213,14 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
     if (state.mode === 'insert-yomikae' || state.mode === 'insert-ruby') {
       const chipType = state.mode === 'insert-yomikae' ? 'yomikae' : 'ruby'
       const insertAt = Editor.start(editor, state.capturedSelection)
-      Transforms.delete(editor, { at: state.capturedSelection })
-      Transforms.insertNodes(
-        editor,
-        { type: chipType, value: state.value, yomi: state.yomi, ...state.marks, children: [{ text: '' }] },
-        { at: insertAt }
-      )
+      Editor.withoutNormalizing(editor, () => {
+        Transforms.delete(editor, { at: state.capturedSelection })
+        Transforms.insertNodes(
+          editor,
+          { type: chipType, value: state.value, yomi: state.yomi, ...state.marks, children: [{ text: '' }] },
+          { at: insertAt }
+        )
+      })
     } else if (state.mode === 'insert-img') {
       const imgNode: ImgElement = {
         type: 'img',
