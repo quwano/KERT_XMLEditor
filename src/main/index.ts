@@ -12,6 +12,22 @@ function createWindow(): void {
     }
   })
 
+  // ── 未保存確認 ──────────────────────────────────────────────────────────
+  let closeConfirmed = false
+  mainWindow.on('close', (e) => {
+    if (!closeConfirmed) {
+      e.preventDefault()
+      mainWindow.webContents.send('app:close-requested')
+    }
+  })
+
+  ipcMain.on('app:close-confirmed', (_, shouldClose: boolean) => {
+    if (shouldClose) {
+      closeConfirmed = true
+      mainWindow.close()
+    }
+  })
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {

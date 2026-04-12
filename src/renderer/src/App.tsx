@@ -9,6 +9,19 @@ export default function App(): React.ReactElement {
   const { value: blocks, set: setBlocks, reset: resetBlocks, undo, redo, canUndo, canRedo } =
     useHistory<Block[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+
+  // ── Close confirmation ─────────────────────────────────────────────────
+  useEffect(() => {
+    window.electronAPI.onCloseRequested(() => {
+      if (isDirty) {
+        const ok = window.confirm('保存されていない変更があります。保存せずに終了しますか？')
+        window.electronAPI.confirmClose(ok)
+      } else {
+        window.electronAPI.confirmClose(true)
+      }
+    })
+  }, [isDirty])
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────
   useEffect(() => {
@@ -28,12 +41,20 @@ export default function App(): React.ReactElement {
   }, [undo, redo])
 
   // ── File operations ────────────────────────────────────────────────────
+  const handleChange = useCallback((newBlocks: Block[]) => {
+    setBlocks(newBlocks)
+    setIsDirty(true)
+  }, [setBlocks])
+
   const handleNew = useCallback(() => {
+    if (isDirty && !window.confirm('保存されていない変更があります。破棄して新規作成しますか？')) return
     resetBlocks([])
     setError(null)
-  }, [resetBlocks])
+    setIsDirty(false)
+  }, [isDirty, resetBlocks])
 
   const handleOpen = useCallback(async () => {
+    if (isDirty && !window.confirm('保存されていない変更があります。破棄して開きますか？')) return
     const xml = await window.electronAPI.openFile()
     if (xml === null) return
     const result = validateXml(xml)
@@ -43,16 +64,18 @@ export default function App(): React.ReactElement {
     }
     setError(null)
     resetBlocks(parseXmlToBlocks(xml))
-  }, [resetBlocks])
+    setIsDirty(false)
+  }, [isDirty, resetBlocks])
 
   const handleSave = useCallback(async () => {
-    await window.electronAPI.saveFile(serializeBlocksToXml(blocks))
+    const ok = await window.electronAPI.saveFile(serializeBlocksToXml(blocks))
+    if (ok) setIsDirty(false)
   }, [blocks])
 
   return (
     <div className="app">
       <header className="toolbar">
-        <span className="app-title">KERT XML Editor</span>
+        <span className="app-title">KERT XML Editor{isDirty ? ' *' : ''}</span>
         <div className="toolbar-actions">
           <button onClick={handleNew}>新規</button>
           <button onClick={handleOpen}>開く</button>
@@ -71,7 +94,7 @@ export default function App(): React.ReactElement {
       )}
 
       <main className="editor-area">
-        <DocumentEditor blocks={blocks} onChange={setBlocks} />
+        <DocumentEditor blocks={blocks} onChange={handleChange} />
       </main>
     </div>
   )
