@@ -4,7 +4,10 @@
  */
 
 import type { Block, RichBlock, RichBlockType, TableBlock, TableRow, TableCell } from '../types/document'
-import type { CustomText, MarkType, SlateValue } from '../types/slate'
+import type {
+  CustomText, MarkType, SlateValue,
+  ChipElement, YomikaeElement, RubyElement, ImgElement, ParagraphChild
+} from '../types/slate'
 import { EMPTY_SLATE_VALUE } from '../types/slate'
 
 let _idCounter = 0
@@ -63,22 +66,23 @@ function parseTr(trEl: Element): TableRow {
 
 /**
  * Convert a rich-text XML element (p, title1-5, td, th) into a Slate value.
- * Handles nested marks: <g>, <u>, <sup>, <sub>.
+ * Handles nested marks: <g>, <u>, <sup>, <sub>, and chip elements.
  */
 function parseRichContent(el: Element): SlateValue {
-  const leaves = parseMixedContent(el, {})
-  if (leaves.length === 0) return EMPTY_SLATE_VALUE
-  return [{ type: 'paragraph', children: leaves }]
+  const children = parseMixedContent(el, {})
+  if (children.length === 0) return EMPTY_SLATE_VALUE
+  return [{ type: 'paragraph', children }]
 }
 
 type ActiveMarks = { g?: boolean; u?: boolean; sup?: boolean; sub?: boolean }
 
 /**
- * Recursively walk DOM child nodes and collect CustomText leaves.
+ * Recursively walk DOM child nodes and collect ParagraphChild nodes
+ * (CustomText leaves and ChipElement nodes).
  * `marks` accumulates the marks inherited from ancestor elements.
  */
-function parseMixedContent(node: Element | DocumentFragment, marks: ActiveMarks): CustomText[] {
-  const result: CustomText[] = []
+function parseMixedContent(node: Element | DocumentFragment, marks: ActiveMarks): ParagraphChild[] {
+  const result: ParagraphChild[] = []
 
   for (const child of Array.from(node.childNodes)) {
     if (child.nodeType === Node.TEXT_NODE) {
@@ -89,15 +93,51 @@ function parseMixedContent(node: Element | DocumentFragment, marks: ActiveMarks)
       }
     } else if (child.nodeType === Node.ELEMENT_NODE) {
       const childEl = child as Element
-      const newMarks: ActiveMarks = { ...marks }
       switch (childEl.tagName) {
-        case 'g':   newMarks.g   = true; break
-        case 'u':   newMarks.u   = true; break
-        case 'sup': newMarks.sup = true; break
-        case 'sub': newMarks.sub = true; break
-        default: break // Phase 6: yomikae, ruby, img
+        case 'g':
+        case 'u':
+        case 'sup':
+        case 'sub': {
+          const newMarks: ActiveMarks = { ...marks }
+          newMarks[childEl.tagName as MarkType] = true
+          result.push(...parseMixedContent(childEl, newMarks))
+          break
+        }
+        case 'yomikae':
+        case 'ruby': {
+          // Chip — text content stored as plain value; inner marks discarded.
+          // Marks from ancestor elements (e.g. <g><yomikae…>) are preserved.
+          const chip: YomikaeElement | RubyElement = {
+            type: childEl.tagName as 'yomikae' | 'ruby',
+            value: childEl.textContent ?? '',
+            yomi: childEl.getAttribute('yomi') ?? '',
+            ...(marks.g   ? { g:   true } : {}),
+            ...(marks.u   ? { u:   true } : {}),
+            ...(marks.sup ? { sup: true } : {}),
+            ...(marks.sub ? { sub: true } : {}),
+            children: [{ text: '' }]
+          }
+          result.push(chip)
+          break
+        }
+        case 'img': {
+          const altAttr = childEl.getAttribute('alt')
+          const chip: ImgElement = {
+            type: 'img',
+            src: childEl.getAttribute('src') ?? '',
+            ...(altAttr !== null ? { alt: altAttr } : {}),
+            ...(marks.g   ? { g:   true } : {}),
+            ...(marks.u   ? { u:   true } : {}),
+            ...(marks.sup ? { sup: true } : {}),
+            ...(marks.sub ? { sub: true } : {}),
+            children: [{ text: '' }]
+          }
+          result.push(chip)
+          break
+        }
+        default:
+          break
       }
-      result.push(...parseMixedContent(childEl, newMarks))
     }
   }
 
@@ -162,34 +202,37 @@ const MARK_ORDER: readonly MarkType[] = ['g', 'u', 'sup', 'sub']
 
 /**
  * Append the serialized rich-text content of a Slate value into `parent`.
- * Uses recursive grouping so that consecutive leaves sharing a mark are
- * wrapped in one element rather than one element per leaf.
- *
- * Example:
- *   leaves: [{text:"今日は",g:true}, {text:"いい",g:true,u:true}, {text:"天気。",u:true}]
- *   output: <g>今日は<u>いい</u></g><u>天気。</u>
+ * Handles mixed children (CustomText leaves and ChipElements).
  */
 function serializeSlateValue(doc: Document, parent: Element, value: SlateValue): void {
   for (const paraNode of value) {
-    serializeLeavesGrouped(doc, parent, paraNode.children, MARK_ORDER)
+    serializeGrouped(doc, parent, paraNode.children, MARK_ORDER)
   }
 }
 
 /**
- * Recursively serialize `leaves` into `parent`, grouping consecutive runs
- * that share `marks[0]` under a single element, then recursing for the
- * remaining marks.
+ * Unified recursive serializer for mixed ParagraphChild arrays.
+ * Groups consecutive runs that share `marks[0]` (across both text leaves and
+ * chip elements) under a single wrapper element, then recurses for the
+ * remaining marks. Chips and text in the same contiguous marked run are
+ * emitted inside a single wrapper:
+ *   [{text:"A",g}, {type:'yomikae',…,g}, {text:"B",g}]
+ *   → <g>A<yomikae …/>B</g>
  */
-function serializeLeavesGrouped(
+function serializeGrouped(
   doc: Document,
   parent: Node,
-  leaves: CustomText[],
+  children: ParagraphChild[],
   marks: readonly MarkType[]
 ): void {
   if (marks.length === 0) {
-    // Base case: no more marks to process — write text nodes directly
-    for (const leaf of leaves) {
-      if (leaf.text.length > 0) parent.appendChild(doc.createTextNode(leaf.text))
+    // Base case: output each child directly
+    for (const child of children) {
+      if (isChipElement(child)) {
+        parent.appendChild(serializeChipCore(doc, child))
+      } else if ((child as CustomText).text.length > 0) {
+        parent.appendChild(doc.createTextNode((child as CustomText).text))
+      }
     }
     return
   }
@@ -198,29 +241,67 @@ function serializeLeavesGrouped(
   const remainingMarks = marks.slice(1)
   let i = 0
 
-  while (i < leaves.length) {
-    if (leaves[i][currentMark]) {
-      // Find the contiguous run of leaves that all carry currentMark
-      let j = i + 1
-      while (j < leaves.length && leaves[j][currentMark]) j++
+  while (i < children.length) {
+    const hasMark = childHasMark(children[i], currentMark)
 
-      // Strip currentMark from the sub-leaves before recursing
-      const subLeaves: CustomText[] = leaves.slice(i, j).map(l => {
-        const copy: CustomText = { text: l.text }
-        for (const m of MARK_ORDER) {
-          if (m !== currentMark && l[m]) copy[m] = true
-        }
-        return copy
-      })
+    if (hasMark) {
+      // Find the contiguous run that all carry currentMark
+      let j = i + 1
+      while (j < children.length && childHasMark(children[j], currentMark)) j++
+
+      // Strip currentMark from the run before recursing
+      const sub = children.slice(i, j).map(c => stripMark(c, currentMark))
 
       const el = doc.createElement(currentMark)
-      serializeLeavesGrouped(doc, el, subLeaves, remainingMarks)
+      serializeGrouped(doc, el, sub, remainingMarks)
       parent.appendChild(el)
       i = j
     } else {
-      // This leaf does not carry currentMark — recurse without grouping
-      serializeLeavesGrouped(doc, parent, [leaves[i]], remainingMarks)
+      serializeGrouped(doc, parent, [children[i]], remainingMarks)
       i++
     }
+  }
+}
+
+/** True if the ParagraphChild (text leaf or chip) carries the given mark. */
+function childHasMark(child: ParagraphChild, mark: MarkType): boolean {
+  return (child as Record<string, unknown>)[mark] === true
+}
+
+/** Return a copy of `child` with `mark` removed. */
+function stripMark(child: ParagraphChild, mark: MarkType): ParagraphChild {
+  if (isChipElement(child)) {
+    const copy = { ...child } as ChipElement & Record<string, unknown>
+    delete copy[mark]
+    return copy as unknown as ParagraphChild
+  }
+  const leaf = child as CustomText
+  const copy: CustomText = { text: leaf.text }
+  for (const m of MARK_ORDER) {
+    if (m !== mark && leaf[m]) copy[m] = true
+  }
+  return copy
+}
+
+function isChipElement(child: ParagraphChild): child is ChipElement {
+  return 'type' in child
+}
+
+/**
+ * Serialize a chip element (without mark wrappers — those are handled by
+ * serializeGrouped at the appropriate nesting level).
+ */
+function serializeChipCore(doc: Document, chip: ChipElement): Element {
+  if (chip.type === 'img') {
+    const el = doc.createElement('img')
+    el.setAttribute('src', chip.src)
+    if (chip.alt !== undefined && chip.alt !== '') el.setAttribute('alt', chip.alt)
+    return el
+  } else {
+    // yomikae or ruby
+    const el = doc.createElement(chip.type)
+    el.textContent = chip.value
+    if (chip.yomi) el.setAttribute('yomi', chip.yomi)
+    return el
   }
 }

@@ -27,19 +27,71 @@ export type CustomText = {
   sub?: boolean
 }
 
+// ── Chip (inline void) elements ────────────────────────────────────────────
+
+/**
+ * <yomikae yomi="よみ">テキスト</yomikae>
+ * Displayed as a blue chip: テキスト《よみ》
+ * Atomic unit — click to edit. Internal marks are not preserved.
+ */
+/** Mark properties that can be applied to chip elements (same as on text leaves). */
+type ChipMarks = { g?: boolean; u?: boolean; sup?: boolean; sub?: boolean }
+
+export type YomikaeElement = {
+  type: 'yomikae'
+  /** Text content of the element (plain text, marks inside are discarded) */
+  value: string
+  /** yomi attribute */
+  yomi: string
+  /** Slate void element requires a placeholder children array */
+  children: CustomText[]
+} & ChipMarks
+
+/**
+ * <ruby yomi="ルビ">テキスト</ruby>
+ * Displayed as a green chip with actual ruby annotation.
+ */
+export type RubyElement = {
+  type: 'ruby'
+  /** Base text (displayed with ruby annotation above) */
+  value: string
+  /** Ruby annotation (yomi attribute) */
+  yomi: string
+  children: CustomText[]
+} & ChipMarks
+
+/**
+ * <img src="..." alt="..."/>
+ * Void element — displayed as [🖼 alt] chip.
+ */
+export type ImgElement = {
+  type: 'img'
+  /** src attribute (required) */
+  src: string
+  /** alt attribute (optional) */
+  alt?: string
+  children: CustomText[]
+} & ChipMarks
+
+export type ChipElement = YomikaeElement | RubyElement | ImgElement
+export type ChipType = ChipElement['type']
+
 // ── Custom elements ────────────────────────────────────────────────────────
+
+/** Mixed children: text leaves and inline chip elements */
+export type ParagraphChild = CustomText | ChipElement
 
 /** Single-paragraph block element — used for title1-5, p, and table cells. */
 export type ParagraphElement = {
   type: 'paragraph'
-  children: CustomText[]
+  children: ParagraphChild[]
 }
 
-export type CustomElement = ParagraphElement
+export type CustomElement = ParagraphElement | YomikaeElement | RubyElement | ImgElement
 
 // ── Editor / value aliases ─────────────────────────────────────────────────
 
-export type SlateValue = CustomElement[]
+export type SlateValue = ParagraphElement[]
 export type CustomEditor = BaseEditor & ReactEditor & HistoryEditor
 
 /**

@@ -1,51 +1,40 @@
 /**
  * Phase 5 – safe mark application with element-boundary checking.
+ * Phase 6 – extended to apply marks to chip elements (yomikae/ruby/img).
  *
  * Rules (confirmed in CLAUDE.md):
  *
- * • g / u marks applied to a selection that contains yomikae or ruby chips:
- *     ALLOWED — Slate applies marks only to Text leaves and skips Element nodes
- *     automatically, producing well-formed XML.
- *
- * • Any mark applied when the selection contains an img chip:
- *     DISALLOWED — img is a void element with no text content.
+ * • g / u / sup / sub marks applied to a selection that contains yomikae, ruby,
+ *   or img chips: ALLOWED — marks are applied to surrounding text leaves AND
+ *   stored as properties on the chip elements themselves (serialised as wrapper
+ *   elements, e.g. <g><yomikae yomi="…">…</yomikae></g>).
  *
  * • sup and sub are mutually exclusive:
- *     Applying one removes the other from the selection.
- *
- * • (Future Phase 6) applying any mark when the selection contains a
- *   sup-chip or sub-chip (if those become Element nodes):
- *     DISALLOWED — XSD requires <sup>/<sub> to contain plain text only.
- *
- * In Phase 5 there are no chip elements yet, so boundary errors never trigger.
- * The function is wired up now so Phase 6 chips "just work" once added.
+ *     Applying one removes the other from both text leaves and chip elements.
  */
 
-import { Editor, Range, Element as SlateElement } from 'slate'
+import { Editor, Range, Transforms, Element as SlateElement } from 'slate'
 import type { MarkType } from '../types/slate'
 
 // ── Chip-type policy ───────────────────────────────────────────────────────
 
 /**
- * Chip types whose surrounding text CAN carry marks across their boundary.
- * Slate skips Element nodes when `Editor.addMark` runs, so marks flow to the
- * text leaves on either side — the chip itself remains untouched.
+ * Chip types whose surrounding text AND the chip itself CAN carry marks.
+ * All current chip types are safe — marks are serialised as wrapper elements.
  */
-const SAFE_CHIP_TYPES = new Set<string>(['yomikae', 'ruby'])
+const SAFE_CHIP_TYPES = new Set<string>(['yomikae', 'ruby', 'img'])
 
 /**
  * Chip types that make the entire mark operation impossible.
- * img is a void chip with no text content; wrapping it inside a mark element
- * would produce semantically empty markup.
- * sup/sub (if they become chip elements in a future phase) cannot contain
- * nested elements per the XSD schema.
+ * (Reserved for hypothetical future chip types; none currently active.)
  */
-const UNSAFE_CHIP_TYPES = new Set<string>(['img', 'sup-chip', 'sub-chip'])
+const UNSAFE_CHIP_TYPES = new Set<string>(['sup-chip', 'sub-chip'])
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**
  * Apply or remove `mark` on the current editor selection with safety checks.
+ * Also toggles the mark on any chip elements within the selection.
  *
  * @returns `null` on success, or a Japanese error string if the operation
  *          cannot be performed.
@@ -54,46 +43,57 @@ export function applyMarkSafely(editor: Editor, mark: MarkType): string | null {
   const { selection } = editor
   if (!selection || Range.isCollapsed(selection)) return null
 
-  // ── 1. Scan for chip elements inside the selection ─────────────────────
+  // ── 1. Scan for unsafe chip elements inside the selection ──────────────
   for (const [node] of Editor.nodes(editor, {
     at: selection,
     match: n => SlateElement.isElement(n) && !Editor.isEditor(n)
   })) {
     const t = (node as { type: string }).type
-
-    // Skip block-level containers — only inline chip elements matter here.
-    // In Phase 6, chip elements (yomikae, ruby, img) will be registered as
-    // inline elements and will NOT have type 'paragraph'.
     if (t === 'paragraph') continue
 
     if (UNSAFE_CHIP_TYPES.has(t)) {
-      const label = t === 'img' ? '画像 (img)' : t
+      const label = t
       return `選択範囲に「${label}」が含まれているためマークアップできません。`
     }
-
+    // SAFE_CHIP_TYPES: handled below — marks are applied to chip properties too
+    // Unknown element: treat conservatively
     if (!SAFE_CHIP_TYPES.has(t)) {
-      // Unknown inline element — treat conservatively as unsafe
       return `不明な要素「${t}」の境界をまたいだマークアップはできません。`
     }
-    // SAFE_CHIP_TYPES (yomikae, ruby): fall through, Slate handles naturally
   }
 
   // ── 2. sup / sub mutual exclusivity ───────────────────────────────────
   const EXCLUSIVE: Partial<Record<MarkType, MarkType>> = { sup: 'sub', sub: 'sup' }
   const opposite = EXCLUSIVE[mark]
   if (opposite) {
-    // Remove the conflicting mark from every text node in the selection,
-    // regardless of whether it's currently "active" at the cursor position.
-    // `Editor.removeMark` handles range selections correctly.
     Editor.removeMark(editor, opposite)
+    // Also remove opposite from chip elements
+    for (const [, path] of Editor.nodes(editor, {
+      at: selection,
+      match: n => SlateElement.isElement(n) && SAFE_CHIP_TYPES.has((n as { type: string }).type)
+    })) {
+      Transforms.unsetNodes(editor, opposite, { at: path })
+    }
   }
 
-  // ── 3. Toggle the requested mark ───────────────────────────────────────
+  // ── 3. Toggle the requested mark on text leaves ────────────────────────
   const isActive = Editor.marks(editor)?.[mark] === true
   if (isActive) {
     Editor.removeMark(editor, mark)
   } else {
     Editor.addMark(editor, mark, true)
+  }
+
+  // ── 4. Mirror the same toggle on chip elements in the selection ────────
+  for (const [, path] of Editor.nodes(editor, {
+    at: selection,
+    match: n => SlateElement.isElement(n) && SAFE_CHIP_TYPES.has((n as { type: string }).type)
+  })) {
+    if (isActive) {
+      Transforms.unsetNodes(editor, mark, { at: path })
+    } else {
+      Transforms.setNodes(editor, { [mark]: true }, { at: path })
+    }
   }
 
   return null
@@ -112,7 +112,7 @@ export function selectionHasUnsafeChip(editor: Editor): boolean {
     match: n => SlateElement.isElement(n) && !Editor.isEditor(n)
   })) {
     const t = (node as { type: string }).type
-    if (t === 'paragraph') continue  // block container — not a chip
+    if (t === 'paragraph') continue
     if (UNSAFE_CHIP_TYPES.has(t)) return true
     if (!SAFE_CHIP_TYPES.has(t)) return true  // unknown inline element
   }
