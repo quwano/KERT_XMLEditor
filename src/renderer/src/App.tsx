@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import DocumentEditor from './components/DocumentEditor'
+import SettingsDialog from './components/SettingsDialog'
 import { parseXmlToBlocks, serializeBlocksToXml } from './utils/xmlParser'
 import { validateXml } from './utils/xmlValidator'
 import { useHistory } from './hooks/useHistory'
+import { useSettings } from './contexts/SettingsContext'
 import type { Block } from './types/document'
 
 export default function App(): React.ReactElement {
@@ -10,12 +12,14 @@ export default function App(): React.ReactElement {
     useHistory<Block[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const { t } = useSettings()
 
   // ── Close confirmation ─────────────────────────────────────────────────
   useEffect(() => {
     window.electronAPI.onCloseRequested(() => {
       if (isDirty) {
-        const ok = window.confirm('保存されていない変更があります。保存せずに終了しますか？')
+        const ok = window.confirm(t('confirm.closeUnsaved'))
         window.electronAPI.confirmClose(ok)
       } else {
         window.electronAPI.confirmClose(true)
@@ -47,19 +51,19 @@ export default function App(): React.ReactElement {
   }, [setBlocks])
 
   const handleNew = useCallback(() => {
-    if (isDirty && !window.confirm('保存されていない変更があります。破棄して新規作成しますか？')) return
+    if (isDirty && !window.confirm(t('confirm.newUnsaved'))) return
     resetBlocks([])
     setError(null)
     setIsDirty(false)
   }, [isDirty, resetBlocks])
 
   const handleOpen = useCallback(async () => {
-    if (isDirty && !window.confirm('保存されていない変更があります。破棄して開きますか？')) return
+    if (isDirty && !window.confirm(t('confirm.openUnsaved'))) return
     const xml = await window.electronAPI.openFile()
     if (xml === null) return
     const result = validateXml(xml)
     if (!result.valid) {
-      setError(`XML の妥当性検証に失敗しました:\n${result.errors.join('\n')}`)
+      setError(`${t('error.xmlValidation')}\n${result.errors.join('\n')}`)
       return
     }
     setError(null)
@@ -77,25 +81,29 @@ export default function App(): React.ReactElement {
       <header className="toolbar">
         <span className="app-title">KERT XML Editor{isDirty ? ' *' : ''}</span>
         <div className="toolbar-actions">
-          <button onClick={handleNew}>新規</button>
-          <button onClick={handleOpen}>開く</button>
-          <button onClick={handleSave}>保存</button>
+          <button onClick={handleNew}>{t('toolbar.new')}</button>
+          <button onClick={handleOpen}>{t('toolbar.open')}</button>
+          <button onClick={handleSave}>{t('toolbar.save')}</button>
           <div className="toolbar-divider" />
-          <button onClick={undo} disabled={!canUndo} title="元に戻す (⌘Z / Ctrl+Z)">↩ 元に戻す</button>
-          <button onClick={redo} disabled={!canRedo} title="やり直し (⌘⇧Z / Ctrl+Y)">↪ やり直し</button>
+          <button onClick={undo} disabled={!canUndo} title={t('toolbar.undo.title')}>{t('toolbar.undo')}</button>
+          <button onClick={redo} disabled={!canRedo} title={t('toolbar.redo.title')}>{t('toolbar.redo')}</button>
+          <div className="toolbar-divider" />
+          <button onClick={() => setShowSettings(true)} title={t('toolbar.settings')}>⚙</button>
         </div>
       </header>
 
       {error && (
         <div className="error-banner" role="alert">
           <pre>{error}</pre>
-          <button onClick={() => setError(null)} className="btn-close">閉じる</button>
+          <button onClick={() => setError(null)} className="btn-close">{t('error.close')}</button>
         </div>
       )}
 
       <main className="editor-area">
         <DocumentEditor blocks={blocks} onChange={handleChange} />
       </main>
+
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

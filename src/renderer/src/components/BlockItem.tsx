@@ -2,11 +2,7 @@ import React, { useState } from 'react'
 import type { Block, RichBlock, TableBlock, TableRow, SlateValue } from '../types/document'
 import { makeEmptySlateValue, EMPTY_SLATE_VALUE } from '../types/document'
 import RichTextEditor from './RichTextEditor'
-
-const BLOCK_LABELS: Record<string, string> = {
-  title1: '見出し1', title2: '見出し2', title3: '見出し3',
-  title4: '見出し4', title5: '見出し5', p: '段落', table: 'テーブル'
-}
+import { useSettings } from '../contexts/SettingsContext'
 
 interface Props {
   block: Block
@@ -21,6 +17,8 @@ interface Props {
 export default function BlockItem({
   block, isFirst, isLast, onRemove, onMoveUp, onMoveDown, onChange
 }: Props): React.ReactElement {
+  const { t } = useSettings()
+
   const handleRichChange = (content: SlateValue): void => {
     onChange({ ...(block as RichBlock), content })
   }
@@ -32,10 +30,10 @@ export default function BlockItem({
   return (
     <div className={`block-item block-type-${block.type}`}>
       <div className="block-controls">
-        <span className="block-label">{BLOCK_LABELS[block.type]}</span>
-        <button onClick={onMoveUp} disabled={isFirst} title="上に移動" className="btn-icon">↑</button>
-        <button onClick={onMoveDown} disabled={isLast} title="下に移動" className="btn-icon">↓</button>
-        <button onClick={onRemove} title="削除" className="btn-icon btn-remove">✕</button>
+        <span className="block-label">{t(`block.${block.type}`)}</span>
+        <button onClick={onMoveUp} disabled={isFirst} title={t('block.moveUp')} className="btn-icon">↑</button>
+        <button onClick={onMoveDown} disabled={isLast} title={t('block.moveDown')} className="btn-icon">↓</button>
+        <button onClick={onRemove} title={t('block.remove')} className="btn-icon btn-remove">✕</button>
       </div>
       <div className="block-content">
         {block.type === 'table' ? (
@@ -44,7 +42,7 @@ export default function BlockItem({
           <RichTextEditor
             value={(block as RichBlock).content ?? EMPTY_SLATE_VALUE}
             onChange={handleRichChange}
-            placeholder={`${BLOCK_LABELS[block.type]} のテキストを入力…`}
+            placeholder={t('block.placeholder', { label: t(`block.${block.type}`) })}
           />
         )}
       </div>
@@ -61,6 +59,7 @@ function genId(): string {
 // ── TableEditor ────────────────────────────────────────────────────────────
 
 function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: TableBlock) => void }): React.ReactElement {
+  const { t } = useSettings()
   const [selectedRow, setSelectedRow] = useState<string | null>(null)
   const [selectedCol, setSelectedCol] = useState<number | null>(null)
 
@@ -224,24 +223,24 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
     <div className="table-editor">
       {/* ── Toolbar ── */}
       <div className="table-toolbar">
-        <button onClick={appendRow} className="btn-sm">＋ 行を追加（末尾）</button>
+        <button onClick={appendRow} className="btn-sm">{t('table.addRow')}</button>
 
         {!hasHeaderRow && (
           <button onClick={addHeaderRowAtTop} className="btn-sm btn-header">
-            ＋ 先頭に見出し行を追加
+            {t('table.addHeaderRow')}
           </button>
         )}
 
         {selectedRow !== null && (
           <div className="table-action-group">
-            <span className="selection-label">行を選択中</span>
-            <button onClick={() => moveRow('up')}   disabled={isFirstRowSelected}  className="btn-sm btn-action">↑ 上に移動</button>
-            <button onClick={() => moveRow('down')}  disabled={isLastRowSelected}   className="btn-sm btn-action">↓ 下に移動</button>
-            <button onClick={() => insertRow('above')} className="btn-sm btn-action">↑ 上に追加</button>
-            <button onClick={() => insertRow('below')} className="btn-sm btn-action">↓ 下に追加</button>
+            <span className="selection-label">{t('table.rowSelected')}</span>
+            <button onClick={() => moveRow('up')}   disabled={isFirstRowSelected}  className="btn-sm btn-action">{t('table.moveRowUp')}</button>
+            <button onClick={() => moveRow('down')}  disabled={isLastRowSelected}   className="btn-sm btn-action">{t('table.moveRowDown')}</button>
+            <button onClick={() => insertRow('above')} className="btn-sm btn-action">{t('table.insertRowAbove')}</button>
+            <button onClick={() => insertRow('below')} className="btn-sm btn-action">{t('table.insertRowBelow')}</button>
             {!hasHeaderRow && isFirstRowSelected && (
               <button onClick={convertFirstRowToHeader} className="btn-sm btn-header">
-                見出し行に変換
+                {t('table.convertToHeader')}
               </button>
             )}
             <button
@@ -249,27 +248,27 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
               disabled={block.rows.length <= 1}
               className="btn-sm btn-danger"
             >
-              ✕ 行を削除
+              {t('table.deleteRow')}
             </button>
-            <button onClick={clearSelection} className="btn-sm btn-deselect">解除</button>
+            <button onClick={clearSelection} className="btn-sm btn-deselect">{t('table.deselect')}</button>
           </div>
         )}
 
         {selectedCol !== null && (
           <div className="table-action-group">
-            <span className="selection-label">列 {selectedCol + 1} を選択中</span>
-            <button onClick={() => moveCol('left')}  disabled={selectedCol === 0}           className="btn-sm btn-action">← 左に移動</button>
-            <button onClick={() => moveCol('right')} disabled={selectedCol === colCount - 1} className="btn-sm btn-action">→ 右に移動</button>
-            <button onClick={() => insertCol('left')} className="btn-sm btn-action">← 左に追加</button>
-            <button onClick={() => insertCol('right')} className="btn-sm btn-action">→ 右に追加</button>
+            <span className="selection-label">{t('table.colSelected', { n: selectedCol + 1 })}</span>
+            <button onClick={() => moveCol('left')}  disabled={selectedCol === 0}           className="btn-sm btn-action">{t('table.moveColLeft')}</button>
+            <button onClick={() => moveCol('right')} disabled={selectedCol === colCount - 1} className="btn-sm btn-action">{t('table.moveColRight')}</button>
+            <button onClick={() => insertCol('left')} className="btn-sm btn-action">{t('table.insertColLeft')}</button>
+            <button onClick={() => insertCol('right')} className="btn-sm btn-action">{t('table.insertColRight')}</button>
             <button
               onClick={deleteCol}
               disabled={colCount <= 1}
               className="btn-sm btn-danger"
             >
-              ✕ 列を削除
+              {t('table.deleteCol')}
             </button>
-            <button onClick={clearSelection} className="btn-sm btn-deselect">解除</button>
+            <button onClick={clearSelection} className="btn-sm btn-deselect">{t('table.deselect')}</button>
           </div>
         )}
       </div>
@@ -285,9 +284,9 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
                   key={ci}
                   className={`col-select-handle${selectedCol === ci ? ' selected' : ''}`}
                   onClick={() => selectCol(ci)}
-                  title="クリックして列を選択"
+                  title={t('table.selectCol')}
                 >
-                  列 {ci + 1}
+                  {t('table.colHeader', { n: ci + 1 })}
                 </th>
               ))}
             </tr>
@@ -298,7 +297,7 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
                 <td
                   className={`row-select-handle${selectedRow === row.id ? ' selected' : ''}`}
                   onClick={() => selectRow(row.id)}
-                  title="クリックして行を選択"
+                  title={t('table.selectRow')}
                 >
                   ▶
                 </td>
@@ -312,7 +311,7 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
                       <RichTextEditor
                         value={cell.content ?? EMPTY_SLATE_VALUE}
                         onChange={content => handleCellChange(row.id, cell.id, content)}
-                        placeholder="セル"
+                        placeholder={t('table.cellPlaceholder')}
                       />
                     </Tag>
                   )

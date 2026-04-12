@@ -2,11 +2,7 @@ import React, { useState, useCallback } from 'react'
 import type { Block, BlockType, TableRow, TableCell } from '../types/document'
 import { makeEmptySlateValue } from '../types/document'
 import BlockItem from './BlockItem'
-
-const BLOCK_LABELS: Record<BlockType, string> = {
-  title1: '見出し1', title2: '見出し2', title3: '見出し3',
-  title4: '見出し4', title5: '見出し5', p: '段落', table: 'テーブル'
-}
+import { useSettings } from '../contexts/SettingsContext'
 
 const ALL_BLOCK_TYPES: BlockType[] = ['title1', 'title2', 'title3', 'title4', 'title5', 'p', 'table']
 
@@ -20,6 +16,7 @@ interface Props {
 }
 
 export default function BlockList({ blocks, onChange }: Props): React.ReactElement {
+  const { t } = useSettings()
   /** Index at which to insert the next block (null = no active separator). */
   const [insertAt, setInsertAt] = useState<number | null>(null)
   /** Whether the table-creation form is waiting for row/col input. */
@@ -91,13 +88,13 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
       return (
         <div className="insert-separator active">
           <div className="type-selector-bar">
-            <span className="selector-label">追加:</span>
+            <span className="selector-label">{t('blockList.selectorLabel')}</span>
             {ALL_BLOCK_TYPES.map(type => (
               <button key={type} className="btn-type" onClick={() => handleTypeSelect(type)}>
-                {BLOCK_LABELS[type]}
+                {t(`block.${type}`)}
               </button>
             ))}
-            <button className="btn-cancel-insert" onClick={cancelInsert} title="キャンセル">✕</button>
+            <button className="btn-cancel-insert" onClick={cancelInsert} title={t('blockList.cancelInsert')}>✕</button>
           </div>
         </div>
       )
@@ -107,7 +104,7 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
         <button
           className="insert-trigger"
           onClick={() => setInsertAt(index)}
-          title="ここにブロックを追加"
+          title={t('blockList.insertHere')}
         >
           <span className="insert-line" />
           <span className="insert-plus">＋</span>
@@ -123,9 +120,9 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
       {blocks.length === 0 && insertAt === null ? (
         /* Empty state */
         <div className="empty-doc">
-          <p>ドキュメントにブロックがありません</p>
+          <p>{t('blockList.empty')}</p>
           <button className="btn-add-first" onClick={() => setInsertAt(0)}>
-            ＋ ブロックを追加
+            {t('blockList.addBlock')}
           </button>
         </div>
       ) : (
@@ -152,22 +149,22 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
       {pendingTable && (
         <div className="table-form-overlay">
           <div className="table-form">
-            <h3>テーブルを追加</h3>
+            <h3>{t('blockList.tableModal.title')}</h3>
             <div className="table-form-row">
               <label>
-                行数
+                {t('blockList.tableModal.rows')}
                 <input type="number" min={1} max={50} value={tableRows}
                   onChange={e => setTableRows(Number(e.target.value))} />
               </label>
               <label>
-                列数
+                {t('blockList.tableModal.cols')}
                 <input type="number" min={1} max={20} value={tableCols}
                   onChange={e => setTableCols(Number(e.target.value))} />
               </label>
             </div>
             <div className="table-form-actions">
-              <button onClick={confirmTable} className="btn-primary">追加</button>
-              <button onClick={cancelInsert}>キャンセル</button>
+              <button onClick={confirmTable} className="btn-primary">{t('blockList.tableModal.add')}</button>
+              <button onClick={cancelInsert}>{t('blockList.tableModal.cancel')}</button>
             </div>
           </div>
         </div>

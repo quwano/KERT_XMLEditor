@@ -8,15 +8,7 @@ import type {
   YomikaeElement, RubyElement, ImgElement, ChipElement
 } from '../types/slate'
 import { applyMarkSafely, selectionHasUnsafeChip } from '../utils/markUtils'
-
-// ── Constants ──────────────────────────────────────────────────────────────
-
-const MARK_LABELS: Record<MarkType, string> = {
-  g: '強調 (g)',
-  u: '下線 (u)',
-  sup: '上付き (sup)',
-  sub: '下付き (sub)'
-}
+import { useSettings } from '../contexts/SettingsContext'
 
 const CHIP_TYPES = new Set<string>(['yomikae', 'ruby', 'img'])
 
@@ -81,6 +73,7 @@ interface Props {
 }
 
 export default function RichTextEditor({ value, onChange, placeholder }: Props): React.ReactElement {
+  const { t } = useSettings()
   const editor = useMemo(
     () => withChips(withHistory(withReact(createEditor()))),
     []
@@ -330,7 +323,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
         <Editable
           renderLeaf={renderLeaf}
           renderElement={renderElement}
-          placeholder={placeholder ?? 'テキストを入力…'}
+          placeholder={placeholder ?? t('rte.placeholder')}
           onBlur={handleBlur}
           className="rte-editable"
           spellCheck={false}
@@ -389,6 +382,7 @@ interface ContextMenuProps {
 function ContextMenu({
   x, y, editor, onToggle, onInsertChip, onRemoveChip, onClose
 }: ContextMenuProps): React.ReactElement {
+  const { t } = useSettings()
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ left: x, top: y })
 
@@ -447,11 +441,11 @@ function ContextMenu({
             ].filter(Boolean).join(' ')}
             disabled={disabled}
             onClick={() => { onToggle(mark); onClose() }}
-            title={hasOpp ? '（上付き・下付きは同時に設定できません）' : undefined}
+            title={hasOpp ? t('rte.supSubWarning') : undefined}
           >
             {active
-              ? `✓ ${MARK_LABELS[mark]} を解除`
-              : `${MARK_LABELS[mark]} を適用`}
+              ? t('rte.removeMark', { mark: t(`mark.${mark}`) })
+              : t('rte.applyMark',  { mark: t(`mark.${mark}`) })}
             {hasOpp && <span className="rte-menu-excl-note"> ⚠</span>}
           </button>
         )
@@ -465,26 +459,25 @@ function ContextMenu({
         disabled={!hasRange}
         onClick={() => { onInsertChip('yomikae'); onClose() }}
       >
-        よみかえ (yomikae) を挿入
+        {t('rte.insertYomikae')}
       </button>
       <button
         className={['rte-menu-item', !hasRange ? 'disabled' : ''].filter(Boolean).join(' ')}
         disabled={!hasRange}
         onClick={() => { onInsertChip('ruby'); onClose() }}
       >
-        ルビ (ruby) を挿入
+        {t('rte.insertRuby')}
       </button>
       <button
         className="rte-menu-item"
         onClick={() => { onInsertChip('img'); onClose() }}
       >
-        画像 (img) を挿入
+        {t('rte.insertImg')}
       </button>
 
       {/* Chip remove items (only shown when removable chips are in selection) */}
       {removableChips.length > 0 && <hr className="rte-menu-divider" />}
       {removableChips.map(([chip, path]) => {
-        const kindLabel = chip.type === 'yomikae' ? 'よみかえ' : 'ルビ'
         const preview = chip.value.length > 8 ? chip.value.slice(0, 8) + '…' : chip.value
         return (
           <button
@@ -492,14 +485,14 @@ function ContextMenu({
             className="rte-menu-item"
             onClick={() => { onRemoveChip(path, chip.value); onClose() }}
           >
-            「{preview}」{kindLabel} を解除
+            {t('rte.removeChip', { preview, kind: t(`chip.${chip.type}`) })}
           </button>
         )
       })}
 
       <hr className="rte-menu-divider" />
       <button className="rte-menu-item rte-menu-cancel" onClick={onClose}>
-        キャンセル
+        {t('rte.cancel')}
       </button>
     </div>
   )
@@ -515,14 +508,15 @@ interface ChipDialogProps {
 }
 
 function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): React.ReactElement {
+  const { t } = useSettings()
   const isYomikae = state.mode.includes('yomikae')
   const isRuby    = state.mode.includes('ruby')
   const isImg     = state.mode.includes('img')
   const isInsert  = state.mode.startsWith('insert')
 
-  const title = isInsert ? '挿入' : '編集'
-  const kind  = isYomikae ? 'よみかえ' : isRuby ? 'ルビ' : '画像'
-  const submitLabel = isInsert ? '挿入' : '更新'
+  const title = isInsert ? t('chipDialog.insert') : t('chipDialog.edit')
+  const kind  = isYomikae ? t('chip.yomikae') : isRuby ? t('chip.ruby') : t('chip.img')
+  const submitLabel = isInsert ? t('chipDialog.submitInsert') : t('chipDialog.submitUpdate')
 
   const canSubmit = isImg
     ? !!(state as { src: string }).src
@@ -541,7 +535,7 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
         {(isYomikae || isRuby) && (
           <>
             <label>
-              テキスト
+              {t('chipDialog.textLabel')}
               <input
                 type="text"
                 value={(state as { value: string }).value}
@@ -550,7 +544,7 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
               />
             </label>
             <label>
-              よみ
+              {t('chipDialog.yomiLabel')}
               <input
                 type="text"
                 value={(state as { yomi: string }).yomi}
@@ -563,22 +557,22 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
         {isImg && (
           <>
             <label>
-              src（必須）
+              {t('chipDialog.srcLabel')}
               <input
                 type="text"
                 value={(state as { src: string }).src}
                 onChange={e => onChange({ src: e.target.value })}
                 autoFocus
-                placeholder="例: images/photo.png"
+                placeholder={t('chipDialog.srcPlaceholder')}
               />
             </label>
             <label>
-              alt
+              {t('chipDialog.altLabel')}
               <input
                 type="text"
                 value={(state as { alt: string }).alt ?? ''}
                 onChange={e => onChange({ alt: e.target.value })}
-                placeholder="（省略可）"
+                placeholder={t('chipDialog.altPlaceholder')}
               />
             </label>
           </>
@@ -588,7 +582,7 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
           <button className="btn-primary" onClick={onSubmit} disabled={!canSubmit}>
             {submitLabel}
           </button>
-          <button onClick={onCancel}>キャンセル</button>
+          <button onClick={onCancel}>{t('chipDialog.cancel')}</button>
         </div>
       </div>
     </div>
