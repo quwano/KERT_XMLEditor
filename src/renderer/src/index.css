@@ -203,9 +203,11 @@ body {
 .table-preview th, .table-preview td {
   border: 1px solid #ccc; padding: 5px 10px; min-width: 80px; text-align: left;
 }
-.table-preview th { background: #f0f4f8; font-weight: 600; }
+.table-preview th { background: #c8dcf0; font-weight: 600; }
 /* .cell-placeholder is replaced by .cell-rte */
 .cell-rte { padding: 2px 4px !important; vertical-align: top; }
+.table-preview .header-cell { background: #c8dcf0 !important; }
+.table-preview .header-cell .rte-editable { font-weight: 700; }
 
 /* Column / row selector handles */
 .corner-cell {

@@ -306,7 +306,7 @@ function TableEditor({ block, onChange }: { block: TableBlock; onChange: (b: Tab
                   return (
                     <Tag
                       key={cell.id}
-                      className={`cell-rte${selectedCol === ci ? ' selected-col' : ''}`}
+                      className={`cell-rte${cell.isHeader ? ' header-cell' : ''}${selectedCol === ci ? ' selected-col' : ''}`}
                     >
                       <RichTextEditor
                         value={cell.content ?? EMPTY_SLATE_VALUE}
