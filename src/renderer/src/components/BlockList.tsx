@@ -108,7 +108,7 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
           className={`insert-separator${isDropTarget ? ' drag-target' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setDragOverSep(index) }}
           onDragLeave={() => setDragOverSep(null)}
-          onDrop={(e) => { e.preventDefault(); reorderBlock(index) }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); reorderBlock(index) }}
         />
       )
     }
