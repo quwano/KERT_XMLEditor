@@ -13,6 +13,7 @@ export default function App(): React.ReactElement {
   const [error, setError] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
   const { t } = useSettings()
 
   // ── Close confirmation ─────────────────────────────────────────────────
@@ -71,13 +72,51 @@ export default function App(): React.ReactElement {
     setIsDirty(false)
   }, [isDirty, resetBlocks])
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer.types.includes('Files')) setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (!file || !file.name.endsWith('.xml')) {
+      setError(t('error.dropNotXml'))
+      return
+    }
+    if (isDirty && !window.confirm(t('confirm.openUnsaved'))) return
+    const xml = await file.text()
+    const result = validateXml(xml)
+    if (!result.valid) {
+      setError(`${t('error.xmlValidation')}\n${result.errors.join('\n')}`)
+      return
+    }
+    setError(null)
+    resetBlocks(parseXmlToBlocks(xml))
+    setIsDirty(false)
+  }, [isDirty, resetBlocks, t])
+
   const handleSave = useCallback(async () => {
     const ok = await window.electronAPI.saveFile(serializeBlocksToXml(blocks))
     if (ok) setIsDirty(false)
   }, [blocks])
 
   return (
-    <div className="app">
+    <div
+      className={`app${isDragOver ? ' drag-over' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <header className="toolbar">
         <span className="app-title">KERT XML Editor{isDirty ? ' *' : ''}</span>
         <div className="toolbar-actions">
@@ -104,6 +143,11 @@ export default function App(): React.ReactElement {
       </main>
 
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {isDragOver && (
+        <div className="drop-overlay">
+          <span>{t('drop.overlay')}</span>
+        </div>
+      )}
     </div>
   )
 }

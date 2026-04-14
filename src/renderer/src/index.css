@@ -15,6 +15,22 @@ body {
 /* ── App Layout ── */
 .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
+/* ── Drop Overlay ── */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 100, 255, 0.12);
+  border: 3px dashed #0064ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #0064ff;
+  pointer-events: none;
+  z-index: 1000;
+}
+
 /* ── Toolbar ── */
 .toolbar {
   display: flex; align-items: center; justify-content: space-between;
