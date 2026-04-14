@@ -15,6 +15,36 @@ body {
 /* ── App Layout ── */
 .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
+/* ── Drag handle ── */
+.drag-handle {
+  cursor: grab;
+  padding: 0 4px;
+  color: #aaa;
+  font-size: 1.1em;
+  user-select: none;
+  line-height: 1;
+}
+.drag-handle:active { cursor: grabbing; }
+
+/* ── Dragging block ── */
+.block-item.is-dragging { opacity: 0.4; }
+
+/* ── Drop target separator ── */
+.insert-separator.drag-target {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.insert-separator.drag-target::after {
+  content: '';
+  display: block;
+  flex: 1;
+  height: 3px;
+  background: #0064ff;
+  border-radius: 2px;
+}
+
 /* ── Toolbar ── */
 .toolbar {
   display: flex; align-items: center; justify-content: space-between;

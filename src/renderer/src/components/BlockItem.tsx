@@ -12,10 +12,14 @@ interface Props {
   onMoveUp: () => void
   onMoveDown: () => void
   onChange: (updated: Block) => void
+  isDragging: boolean
+  onDragStart: () => void
+  onDragEnd: () => void
 }
 
 export default function BlockItem({
-  block, isFirst, isLast, onRemove, onMoveUp, onMoveDown, onChange
+  block, isFirst, isLast, onRemove, onMoveUp, onMoveDown, onChange,
+  isDragging, onDragStart, onDragEnd
 }: Props): React.ReactElement {
   const { t } = useSettings()
 
@@ -28,8 +32,15 @@ export default function BlockItem({
   }
 
   return (
-    <div className={`block-item block-type-${block.type}`}>
+    <div className={`block-item block-type-${block.type}${isDragging ? ' is-dragging' : ''}`}>
       <div className="block-controls">
+        <span
+          className="drag-handle"
+          draggable
+          onDragStart={(e) => { e.stopPropagation(); onDragStart() }}
+          onDragEnd={onDragEnd}
+          title="ドラッグして並び替え"
+        >⠿</span>
         <span className="block-label">{t(`block.${block.type}`)}</span>
         <button onClick={onMoveUp} disabled={isFirst} title={t('block.moveUp')} className="btn-icon">↑</button>
         <button onClick={onMoveDown} disabled={isLast} title={t('block.moveDown')} className="btn-icon">↓</button>

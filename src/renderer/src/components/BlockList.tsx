@@ -21,6 +21,8 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
   const [insertAt, setInsertAt] = useState<number | null>(null)
   /** Whether the table-creation form is waiting for row/col input. */
   const [pendingTable, setPendingTable] = useState(false)
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dragOverSep, setDragOverSep] = useState<number | null>(null)
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
 
@@ -82,8 +84,35 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
     onChange(blocks.map(b => b.id === updated.id ? updated : b))
   }, [blocks, onChange])
 
+  const reorderBlock = useCallback((droppedAtSep: number) => {
+    if (draggedId === null) return
+    const draggedIdx = blocks.findIndex(b => b.id === draggedId)
+    if (draggedIdx < 0) return
+    const next = [...blocks]
+    const [removed] = next.splice(draggedIdx, 1)
+    const insertIdx = droppedAtSep > draggedIdx ? droppedAtSep - 1 : droppedAtSep
+    next.splice(insertIdx, 0, removed)
+    onChange(next)
+    setDraggedId(null)
+    setDragOverSep(null)
+  }, [draggedId, blocks, onChange])
+
   // ── Separator renderer ─────────────────────────────────────────────────
   const renderSeparator = (index: number): React.ReactElement => {
+    const isDragging = draggedId !== null
+    const isDropTarget = dragOverSep === index
+
+    if (isDragging) {
+      return (
+        <div
+          className={`insert-separator${isDropTarget ? ' drag-target' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragOverSep(index) }}
+          onDragLeave={() => setDragOverSep(null)}
+          onDrop={(e) => { e.preventDefault(); reorderBlock(index) }}
+        />
+      )
+    }
+
     if (insertAt === index) {
       return (
         <div className="insert-separator active">
@@ -138,6 +167,9 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
                 onMoveUp={() => moveBlock(block.id, 'up')}
                 onMoveDown={() => moveBlock(block.id, 'down')}
                 onChange={updateBlock}
+                isDragging={draggedId === block.id}
+                onDragStart={() => setDraggedId(block.id)}
+                onDragEnd={() => { setDraggedId(null); setDragOverSep(null) }}
               />
               {renderSeparator(idx + 1)}
             </React.Fragment>
