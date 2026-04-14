@@ -48,6 +48,8 @@ function createWindow(): void {
     }
   })
 
+  mainWindow.webContents.on('will-navigate', (e) => e.preventDefault())
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {

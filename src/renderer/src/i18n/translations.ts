@@ -17,6 +17,8 @@ const ja: TMap = {
   'confirm.openUnsaved': '保存されていない変更があります。破棄して開きますか？',
   'error.xmlValidation': 'XML の妥当性検証に失敗しました:',
   'error.close': '閉じる',
+  'error.dropNotXml': 'XMLファイル(.xml)をドロップしてください',
+  'drop.overlay': 'XMLファイルをドロップ',
   // Block types
   'block.title1': '見出し1',
   'block.title2': '見出し2',
@@ -126,6 +128,8 @@ const en: TMap = {
   'confirm.openUnsaved': 'You have unsaved changes. Discard and open?',
   'error.xmlValidation': 'XML validation failed:',
   'error.close': 'Close',
+  'error.dropNotXml': 'Please drop an XML file (.xml)',
+  'drop.overlay': 'Drop XML file here',
   // Block types
   'block.title1': 'Heading 1',
   'block.title2': 'Heading 2',
@@ -235,6 +239,8 @@ const de: TMap = {
   'confirm.openUnsaved': 'Es gibt ungespeicherte Änderungen. Verwerfen und öffnen?',
   'error.xmlValidation': 'XML-Validierung fehlgeschlagen:',
   'error.close': 'Schließen',
+  'error.dropNotXml': 'Bitte eine XML-Datei (.xml) ablegen',
+  'drop.overlay': 'XML-Datei hier ablegen',
   // Block types
   'block.title1': 'Überschrift 1',
   'block.title2': 'Überschrift 2',
