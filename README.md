@@ -71,7 +71,7 @@ The horizontal divider in the image above appears when you hover over it.
 
 ![Blocks](docs/images/blocks.png)
 
-- **Reorder**: Move blocks up or down
+- **Reorder**: Drag the ⠿ handle at the left of a block to reorder it, or use the ↑↓ buttons to move it up or down
 - **Delete**: Remove unwanted blocks
 
 ![Reorder and delete](docs/images/move_and_delete.png)
@@ -128,6 +128,7 @@ The horizontal divider in the image above appears when you hover over it.
 ### File Operations
 
 - Create, save, and open XML files
+- XML files can be opened by dragging and dropping them onto the application window
 - Validation against `document_schema.xsd` is performed on load; files that do not conform to the schema are rejected
 
 ![File operations](docs/images/file_operation.png)
