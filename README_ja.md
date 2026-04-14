@@ -71,7 +71,7 @@ npm run build:win
 
 ![並んだブロック](docs/images/blocks.png)
 
-- **並び替え**: ブロックを上下に移動
+- **並び替え**: ブロック左端の ⠿ ハンドルをドラッグして並び替え、または ↑↓ ボタンで上下に移動
 - **削除**: 不要なブロックを削除
 
 ![並び替えと削除](docs/images/move_and_delete.png)
@@ -129,6 +129,7 @@ npm run build:win
 ### ファイル操作
 
 - XML ファイルの新規作成・保存・読み込み
+- XML ファイルをウィンドウにドラッグ＆ドロップして開くことができます
 - 読み込み時に `document_schema.xsd` に基づく妥当性検証を実施。スキーマに準拠しないファイルは読み込みを拒否します
 
 ![ファイル操作](docs/images/file_operation.png)

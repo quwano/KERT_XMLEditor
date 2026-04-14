@@ -71,7 +71,7 @@ Die horizontale Trennlinie im obigen Bild erscheint beim Darüberfahren mit dem 
 
 ![Blöcke](docs/images/blocks.png)
 
-- **Sortieren**: Blöcke nach oben oder unten verschieben
+- **Sortieren**: Das ⠿-Handle am linken Rand eines Blocks ziehen zum Neuanordnen, oder die ↑↓-Schaltflächen zum Verschieben verwenden
 - **Löschen**: Nicht benötigte Blöcke entfernen
 
 ![Verschieben und Löschen](docs/images/move_and_delete.png)
@@ -128,6 +128,7 @@ Die horizontale Trennlinie im obigen Bild erscheint beim Darüberfahren mit dem 
 ### Dateioperationen
 
 - XML-Dateien neu erstellen, speichern und öffnen
+- XML-Dateien können durch Drag & Drop auf das Anwendungsfenster geöffnet werden
 - Beim Öffnen wird eine Validierung gegen `document_schema.xsd` durchgeführt; nicht konforme Dateien werden abgelehnt
 
 ![Dateioperationen](docs/images/file_operation.png)
