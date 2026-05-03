@@ -48,6 +48,10 @@ function createWindow(): void {
     }
   })
 
+  mainWindow.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'local-fonts')
+  })
+
   mainWindow.webContents.on('will-navigate', (e) => e.preventDefault())
 
   if (process.env['ELECTRON_RENDERER_URL']) {

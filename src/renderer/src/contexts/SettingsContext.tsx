@@ -3,7 +3,6 @@ import type { Lang } from '../i18n/translations'
 import { translations } from '../i18n/translations'
 
 export type FontSize = 'small' | 'normal' | 'large' | 'xlarge'
-export type FontFamily = 'system' | 'sans' | 'serif' | 'mono'
 
 const FONT_SIZE_VALUES: Record<FontSize, string> = {
   small: '12px',
@@ -12,20 +11,17 @@ const FONT_SIZE_VALUES: Record<FontSize, string> = {
   xlarge: '18px',
 }
 
-const FONT_FAMILY_VALUES: Record<FontFamily, string> = {
-  system: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  sans: '"Helvetica Neue", Arial, Helvetica, sans-serif',
-  serif: '"Georgia", "Times New Roman", serif',
-  mono: '"Menlo", "Consolas", "Courier New", monospace',
-}
+const LEGACY_FONT_FAMILY_KEYS = new Set(['system', 'sans', 'serif', 'mono'])
 
 interface SettingsContextValue {
   lang: Lang
   setLang: (l: Lang) => void
   fontSize: FontSize
   setFontSize: (s: FontSize) => void
-  fontFamily: FontFamily
-  setFontFamily: (f: FontFamily) => void
+  customFontSizePt: number | null
+  setCustomFontSizePt: (pt: number | null) => void
+  fontFamily: string
+  setFontFamily: (f: string) => void
   t: (key: string, params?: Record<string, string | number>) => string
 }
 
@@ -49,17 +45,31 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     return (saved as FontSize | null) ?? 'normal'
   })
 
-  const [fontFamily, setFontFamilyState] = useState<FontFamily>(() => {
+  const [customFontSizePt, setCustomFontSizePtState] = useState<number | null>(() => {
+    const saved = localStorage.getItem('kert.customFontSizePt')
+    if (!saved) return null
+    const num = parseFloat(saved)
+    return !isNaN(num) && num > 0 ? num : null
+  })
+
+  const [fontFamily, setFontFamilyState] = useState<string>(() => {
     const saved = localStorage.getItem('kert.fontFamily')
-    return (saved as FontFamily | null) ?? 'system'
+    if (!saved || LEGACY_FONT_FAMILY_KEYS.has(saved)) return ''
+    return saved
   })
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--font-size-base', FONT_SIZE_VALUES[fontSize])
-  }, [fontSize])
+    const px = customFontSizePt !== null
+      ? `${(customFontSizePt * 4 / 3).toFixed(2)}px`
+      : FONT_SIZE_VALUES[fontSize]
+    document.documentElement.style.setProperty('--font-size-base', px)
+  }, [fontSize, customFontSizePt])
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--font-family-base', FONT_FAMILY_VALUES[fontFamily])
+    const css = fontFamily
+      ? `"${fontFamily}", sans-serif`
+      : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    document.documentElement.style.setProperty('--font-family-base', css)
   }, [fontFamily])
 
   const setLang = useCallback((l: Lang) => {
@@ -72,7 +82,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
     localStorage.setItem('kert.fontSize', s)
   }, [])
 
-  const setFontFamily = useCallback((f: FontFamily) => {
+  const setCustomFontSizePt = useCallback((pt: number | null) => {
+    setCustomFontSizePtState(pt)
+    if (pt === null) {
+      localStorage.removeItem('kert.customFontSizePt')
+    } else {
+      localStorage.setItem('kert.customFontSizePt', String(pt))
+    }
+  }, [])
+
+  const setFontFamily = useCallback((f: string) => {
     setFontFamilyState(f)
     localStorage.setItem('kert.fontFamily', f)
   }, [])
@@ -82,7 +101,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
   }, [lang])
 
   return (
-    <SettingsContext.Provider value={{ lang, setLang, fontSize, setFontSize, fontFamily, setFontFamily, t }}>
+    <SettingsContext.Provider value={{ lang, setLang, fontSize, setFontSize, customFontSizePt, setCustomFontSizePt, fontFamily, setFontFamily, t }}>
       {children}
     </SettingsContext.Provider>
   )

@@ -472,7 +472,7 @@ tr.selected-row td, tr.selected-row th { background: #e3f2fd !important; }
 }
 .settings-dialog {
   background: #fff; border-radius: 10px; padding: 24px 28px;
-  min-width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  min-width: 380px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
   display: flex; flex-direction: column; gap: 20px;
 }
 .settings-dialog h3 { font-size: 1.07em; font-weight: 600; color: #333; margin: 0; }
@@ -487,3 +487,47 @@ tr.selected-row td, tr.selected-row th { background: #e3f2fd !important; }
 .settings-option-btn:hover { background: #f0f0f0; }
 .settings-option-btn.active { background: #4a90d9; color: #fff; border-color: #4a90d9; }
 .settings-footer { display: flex; justify-content: flex-end; border-top: 1px solid #eee; padding-top: 16px; }
+
+/* custom font size pt input */
+.settings-custom-pt { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.settings-custom-pt-label { font-size: 0.86em; color: #666; white-space: nowrap; }
+.settings-pt-input {
+  width: 68px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;
+  font-size: 0.93em; background: #fafafa; color: #333;
+  -moz-appearance: textfield;
+}
+.settings-pt-input::-webkit-outer-spin-button,
+.settings-pt-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.settings-pt-input:focus { outline: none; border-color: #4a90d9; }
+.settings-pt-input.active { border-color: #4a90d9; background: #eef4fc; }
+.settings-pt-unit { font-size: 0.86em; color: #666; }
+
+/* font family picker */
+.settings-font-picker { position: relative; }
+.settings-font-input-wrap { display: flex; align-items: center; gap: 6px; }
+.settings-font-input {
+  flex: 1; padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px;
+  font-size: 0.93em; background: #fafafa; color: #333;
+  outline: none; min-width: 0;
+}
+.settings-font-input:focus { border-color: #4a90d9; }
+.settings-font-clear {
+  padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;
+  background: #fafafa; cursor: pointer; font-size: 0.86em; color: #666;
+  flex-shrink: 0; line-height: 1;
+}
+.settings-font-clear:hover { background: #f0f0f0; color: #333; }
+.settings-font-dropdown {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 500;
+  background: #fff; border: 1px solid #ccc; border-radius: 4px;
+  max-height: 220px; overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12); list-style: none; padding: 2px 0; margin: 0;
+}
+.settings-font-option {
+  padding: 6px 12px; font-size: 0.93em; cursor: pointer; color: #333; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.settings-font-option:hover { background: #f0f0f0; }
+.settings-font-option.highlighted { background: #ddeeff; }
+.settings-font-option.active { background: #4a90d9; color: #fff; }
+.settings-font-option.active.highlighted { background: #3a7bc8; }
