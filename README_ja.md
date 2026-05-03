@@ -137,8 +137,8 @@ npm run build:win
 ### GUI 設定
 
 - 表示言語の切り替え（日本語・English・Deutsch）
-- フォントサイズの変更（Small / Normal / Large / XLarge）
-- フォントの変更（System / Sans-serif / Serif / Monospace）
+- フォントサイズの変更（小 / 標準 / 大 / 特大 / カスタム）
+- 書体の変更
 
 ![設定](docs/images/config.png)
 

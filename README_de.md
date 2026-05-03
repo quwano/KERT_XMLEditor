@@ -136,8 +136,8 @@ Die horizontale Trennlinie im obigen Bild erscheint beim Darüberfahren mit dem 
 ### GUI-Einstellungen
 
 - Anzeigesprache wechseln (日本語 / English / Deutsch)
-- Schriftgröße ändern (Small / Normal / Large / XLarge)
-- Schriftart ändern (System / Sans-serif / Serif / Monospace)
+- Schriftgröße ändern (Small / Normal / Large / XLarge / Custom)
+- Schriftart ändern
 
 ![Einstellungen](docs/images/config.png)
 

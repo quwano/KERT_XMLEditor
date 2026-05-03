@@ -136,8 +136,8 @@ The horizontal divider in the image above appears when you hover over it.
 ### GUI Settings
 
 - Switch display language (日本語 / English / Deutsch)
-- Change font size (Small / Normal / Large / XLarge)
-- Change font (System / Sans-serif / Serif / Monospace)
+- Change font size (Small / Normal / Large / XLarge / Custom)
+- Change typeface
 
 ![Settings](docs/images/config.png)
 
