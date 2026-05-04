@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
-import { readFile, writeFile } from 'fs/promises'
+import { join, dirname, relative } from 'path'
+import { readFile, writeFile, access } from 'fs/promises'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -67,18 +67,60 @@ ipcMain.handle('file:open', async () => {
     properties: ['openFile']
   })
   if (result.canceled || result.filePaths.length === 0) return null
-  const content = await readFile(result.filePaths[0], 'utf-8')
-  return content
+  const filePath = result.filePaths[0]
+  const content = await readFile(filePath, 'utf-8')
+  return { content, fileDir: dirname(filePath) }
 })
 
-ipcMain.handle('file:save', async (_, xmlContent: string) => {
+ipcMain.handle('file:save', async () => {
   const result = await dialog.showSaveDialog({
     filters: [{ name: 'XML Files', extensions: ['xml'] }],
     defaultPath: 'document.xml'
   })
-  if (result.canceled || !result.filePath) return false
-  await writeFile(result.filePath, xmlContent, 'utf-8')
-  return true
+  if (result.canceled || !result.filePath) return null
+  return { filePath: result.filePath, fileDir: dirname(result.filePath) }
+})
+
+ipcMain.handle('file:write', async (_, filePath: string, content: string): Promise<boolean> => {
+  try {
+    await writeFile(filePath, content, 'utf-8')
+    return true
+  } catch {
+    return false
+  }
+})
+
+ipcMain.handle('util:relativePath', (_, from: string, to: string): string => {
+  return relative(from, to)
+})
+
+ipcMain.handle('image:choose', async (_, fileDir: string | null): Promise<string | null> => {
+  const result = await dialog.showOpenDialog({
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'] }],
+    properties: ['openFile']
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  const filePath = result.filePaths[0]
+  return fileDir ? relative(fileDir, filePath) : filePath
+})
+
+ipcMain.handle('image:load', async (_, src: string, fileDir: string | null): Promise<string | null> => {
+  try {
+    const absPath = /^([A-Za-z]:[\\/]|\/)/.test(src) ? src
+      : fileDir ? join(fileDir, src) : null
+    if (!absPath) return null
+    await access(absPath)
+    const data = await readFile(absPath)
+    const ext = absPath.split('.').pop()?.toLowerCase() ?? ''
+    const mimeMap: Record<string, string> = {
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+      bmp: 'image/bmp'
+    }
+    return `data:${mimeMap[ext] ?? 'image/png'};base64,${data.toString('base64')}`
+  } catch {
+    return null
+  }
 })
 
 app.whenReady().then(() => {

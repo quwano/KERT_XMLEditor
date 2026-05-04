@@ -9,6 +9,7 @@ import type {
 } from '../types/slate'
 import { applyMarkSafely, selectionHasUnsafeChip } from '../utils/markUtils'
 import { useSettings } from '../contexts/SettingsContext'
+import { useFileContext } from '../contexts/FileContext'
 
 const CHIP_TYPES = new Set<string>(['yomikae', 'ruby', 'img'])
 
@@ -51,6 +52,53 @@ function Leaf({ attributes, children, leaf }: RenderLeafProps): React.ReactEleme
   if (l.g)   node = <span className="mark-g">{node}</span>
 
   return <span {...attributes}>{node}</span>
+}
+
+// ── ImgChip ────────────────────────────────────────────────────────────────
+
+interface ImgChipProps {
+  chip: ImgElement
+  attributes: RenderElementProps['attributes']
+  children: React.ReactNode
+  onContextMenu: () => void
+  onClick: () => void
+}
+
+function ImgChip({ chip, attributes, children, onContextMenu, onClick }: ImgChipProps): React.ReactElement {
+  const { fileDir } = useFileContext()
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const isUrl = /^https?:\/\//i.test(chip.src)
+
+  useEffect(() => {
+    if (!chip.src) return
+    let cancelled = false
+    if (isUrl) {
+      setImageSrc(chip.src)
+      return
+    }
+    window.electronAPI.loadImage(chip.src, fileDir).then(url => {
+      if (!cancelled) setImageSrc(url)
+    })
+    return () => { cancelled = true }
+  }, [chip.src, fileDir, isUrl])
+
+  const filename = chip.src.split('/').pop() ?? chip.src
+  const label = chip.alt ? `${filename} (${chip.alt})` : filename
+
+  return (
+    <span
+      {...attributes}
+      contentEditable={false}
+      className={chipClassNames('chip-img', chip)}
+      onMouseDown={e => e.preventDefault()}
+      onContextMenu={onContextMenu}
+      onClick={onClick}
+    >
+      {imageSrc && <img src={imageSrc} alt={chip.alt ?? ''} className="chip-img-image" />}
+      {!imageSrc && '🖼 '}{label}
+      {children}
+    </span>
+  )
 }
 
 // ── ChipDialog state type ──────────────────────────────────────────────────
@@ -295,20 +343,15 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
         }
         case 'img': {
           const chip = props.element as ImgElement
-          const filename = chip.src.split('/').pop() ?? chip.src
-          const label = chip.alt ? `${filename} (${chip.alt})` : filename
           return (
-            <span
-              {...props.attributes}
-              contentEditable={false}
-              className={chipClassNames('chip-img', chip)}
-              onMouseDown={e => e.preventDefault()}
+            <ImgChip
+              chip={chip}
+              attributes={props.attributes}
               onContextMenu={() => handleChipContextMenu(chip)}
               onClick={() => handleEditChip(chip, ReactEditor.findPath(editor, chip))}
             >
-              🖼 {label}
               {props.children}
-            </span>
+            </ImgChip>
           )
         }
         default:
@@ -520,6 +563,7 @@ interface ChipDialogProps {
 
 function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): React.ReactElement {
   const { t } = useSettings()
+  const { fileDir } = useFileContext()
   const isYomikae = state.mode.includes('yomikae')
   const isRuby    = state.mode.includes('ruby')
   const isImg     = state.mode.includes('img')
@@ -532,6 +576,11 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
   const canSubmit = isImg
     ? !!(state as { src: string }).src
     : true
+
+  const handleBrowse = async (): Promise<void> => {
+    const path = await window.electronAPI.chooseImage(fileDir)
+    if (path !== null) onChange({ src: path })
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' && canSubmit) { e.preventDefault(); onSubmit() }
@@ -569,13 +618,18 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
           <>
             <label>
               {t('chipDialog.srcLabel')}
-              <input
-                type="text"
-                value={(state as { src: string }).src}
-                onChange={e => onChange({ src: e.target.value })}
-                autoFocus
-                placeholder={t('chipDialog.srcPlaceholder')}
-              />
+              <div className="chip-dialog-src-row">
+                <input
+                  type="text"
+                  value={(state as { src: string }).src}
+                  onChange={e => onChange({ src: e.target.value })}
+                  autoFocus
+                  placeholder={t('chipDialog.srcPlaceholder')}
+                />
+                <button type="button" onMouseDown={e => e.preventDefault()} onClick={handleBrowse}>
+                  {t('chipDialog.browse')}
+                </button>
+              </div>
             </label>
             <label>
               {t('chipDialog.altLabel')}
