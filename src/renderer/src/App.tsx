@@ -5,7 +5,23 @@ import { parseXmlToBlocks, serializeBlocksToXml } from './utils/xmlParser'
 import { validateXml } from './utils/xmlValidator'
 import { useHistory } from './hooks/useHistory'
 import { useSettings } from './contexts/SettingsContext'
+import { useFileContext } from './contexts/FileContext'
 import type { Block } from './types/document'
+
+async function convertImgPathsToRelative(xml: string, saveDir: string): Promise<string> {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const imgs = Array.from(doc.querySelectorAll('img'))
+  let modified = false
+  for (const img of imgs) {
+    const src = img.getAttribute('src') ?? ''
+    if (/^([A-Za-z]:[\\/]|\/)/.test(src)) {
+      img.setAttribute('src', await window.electronAPI.relativePath(saveDir, src))
+      modified = true
+    }
+  }
+  if (!modified) return xml
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(doc.documentElement)
+}
 
 export default function App(): React.ReactElement {
   const { value: blocks, set: setBlocks, reset: resetBlocks, undo, redo, canUndo, canRedo } =
@@ -15,6 +31,7 @@ export default function App(): React.ReactElement {
   const [showSettings, setShowSettings] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const { t } = useSettings()
+  const { setFileDir } = useFileContext()
 
   // ── Close confirmation ─────────────────────────────────────────────────
   useEffect(() => {
@@ -54,23 +71,26 @@ export default function App(): React.ReactElement {
   const handleNew = useCallback(() => {
     if (isDirty && !window.confirm(t('confirm.newUnsaved'))) return
     resetBlocks([])
+    setFileDir(null)
     setError(null)
     setIsDirty(false)
-  }, [isDirty, resetBlocks])
+  }, [isDirty, resetBlocks, setFileDir])
 
   const handleOpen = useCallback(async () => {
     if (isDirty && !window.confirm(t('confirm.openUnsaved'))) return
-    const xml = await window.electronAPI.openFile()
-    if (xml === null) return
+    const opened = await window.electronAPI.openFile()
+    if (opened === null) return
+    const { content: xml, fileDir } = opened
     const result = validateXml(xml)
     if (!result.valid) {
       setError(`${t('error.xmlValidation')}\n${result.errors.join('\n')}`)
       return
     }
     setError(null)
+    setFileDir(fileDir)
     resetBlocks(parseXmlToBlocks(xml))
     setIsDirty(false)
-  }, [isDirty, resetBlocks])
+  }, [isDirty, resetBlocks, setFileDir])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -101,14 +121,22 @@ export default function App(): React.ReactElement {
       return
     }
     setError(null)
+    setFileDir(null)
     resetBlocks(parseXmlToBlocks(xml))
     setIsDirty(false)
-  }, [isDirty, resetBlocks, t])
+  }, [isDirty, resetBlocks, setFileDir, t])
 
   const handleSave = useCallback(async () => {
-    const ok = await window.electronAPI.saveFile(serializeBlocksToXml(blocks))
-    if (ok) setIsDirty(false)
-  }, [blocks])
+    const saveResult = await window.electronAPI.saveFile()
+    if (!saveResult) return
+    const { filePath, fileDir: saveDir } = saveResult
+    const xml = await convertImgPathsToRelative(serializeBlocksToXml(blocks), saveDir)
+    const ok = await window.electronAPI.writeFile(filePath, xml)
+    if (ok) {
+      setFileDir(saveDir)
+      setIsDirty(false)
+    }
+  }, [blocks, setFileDir])
 
   return (
     <div

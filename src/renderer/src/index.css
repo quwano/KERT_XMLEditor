@@ -393,6 +393,18 @@ tr.selected-row td, tr.selected-row th { background: #e3f2fd !important; }
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
   color: #475569;
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  vertical-align: top;
+}
+.chip-img-image {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  display: block;
+  border-radius: 2px;
+  margin-bottom: 2px;
 }
 
 /* Mark overlays on chip elements */
@@ -447,6 +459,25 @@ tr.selected-row td, tr.selected-row th { background: #e3f2fd !important; }
   border-color: #4a90d9;
   box-shadow: 0 0 0 2px rgba(74,144,217,0.2);
 }
+
+.chip-dialog-src-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.chip-dialog-src-row input[type="text"] {
+  flex: 1;
+}
+.chip-dialog-src-row button {
+  padding: 7px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f5f5f5;
+  font-size: 0.95em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip-dialog-src-row button:hover { background: #e8e8e8; }
 
 .chip-dialog-actions {
   display: flex;

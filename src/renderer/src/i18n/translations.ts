@@ -94,6 +94,7 @@ const ja: TMap = {
   'chipDialog.srcPlaceholder': '例: images/photo.png',
   'chipDialog.altLabel': 'alt',
   'chipDialog.altPlaceholder': '（省略可）',
+  'chipDialog.browse': '参照...',
   // Settings dialog
   'settings.title': '設定',
   'settings.language': '言語',
@@ -205,6 +206,7 @@ const en: TMap = {
   'chipDialog.srcPlaceholder': 'e.g. images/photo.png',
   'chipDialog.altLabel': 'alt',
   'chipDialog.altPlaceholder': '(optional)',
+  'chipDialog.browse': 'Browse...',
   // Settings dialog
   'settings.title': 'Settings',
   'settings.language': 'Language',
@@ -316,6 +318,7 @@ const de: TMap = {
   'chipDialog.srcPlaceholder': 'z.B. images/photo.png',
   'chipDialog.altLabel': 'alt',
   'chipDialog.altPlaceholder': '(optional)',
+  'chipDialog.browse': 'Durchsuchen...',
   // Settings dialog
   'settings.title': 'Einstellungen',
   'settings.language': 'Sprache',
