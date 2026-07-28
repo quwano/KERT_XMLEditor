@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { MathfieldElement } from 'mathlive'
+import { MathfieldElement, convertLatexToMathMl } from 'mathlive'
 
 // Referencing the import keeps it from being tree-shaken away — evaluating
 // the `mathlive` module is what registers the <math-field> custom element.
@@ -51,7 +51,11 @@ export default function MathFieldInput({ formula, onChange, placeholder }: Props
 
     const handleInput = (): void => {
       const latex = mf.getValue('latex')
-      const ml3 = latex ? mf.getValue('math-ml') : ''
+      // Use the static LaTeX→MathML converter rather than mf.getValue('math-ml'):
+      // that call depends on the <math-field> being fully connected/"upgraded",
+      // and this element is created detached (setValue() runs before it's
+      // appended below) — under those conditions it silently returns ''.
+      const ml3 = latex ? convertLatexToMathMl(latex) : ''
       onChangeRef.current({ formula: latex, mathml: wrapMathML(ml3, latex) })
     }
     mf.addEventListener('input', handleInput)
