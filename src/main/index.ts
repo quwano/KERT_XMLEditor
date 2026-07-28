@@ -87,7 +87,7 @@ ipcMain.handle('file:open', async () => {
   if (result.canceled || result.filePaths.length === 0) return null
   const filePath = result.filePaths[0]
   const content = await readFile(filePath, 'utf-8')
-  return { format: detectFormat(filePath), content, fileDir: dirname(filePath) }
+  return { format: detectFormat(filePath), content, filePath, fileDir: dirname(filePath) }
 })
 
 ipcMain.handle('file:save', async (_, format: DocumentFormat) => {
@@ -108,6 +108,10 @@ ipcMain.handle('file:write', async (_, filePath: string, content: string): Promi
 
 ipcMain.handle('util:relativePath', (_, from: string, to: string): string => {
   return relative(from, to)
+})
+
+ipcMain.handle('util:dirname', (_, filePath: string): string => {
+  return dirname(filePath)
 })
 
 ipcMain.handle('image:choose', async (_, fileDir: string | null): Promise<string | null> => {

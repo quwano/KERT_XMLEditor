@@ -7,6 +7,7 @@
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
     "outDir": ".ts-build/node"
   },
   "include": ["electron-vite.config.*", "src/main/**/*", "src/preload/**/*"]

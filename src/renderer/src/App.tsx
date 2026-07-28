@@ -31,9 +31,10 @@ export default function App(): React.ReactElement {
   const [isDirty, setIsDirty] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null)
   const { t } = useSettings()
   const { setFileDir } = useFileContext()
-  const { setFormat } = useFormat()
+  const { adapter, setFormat } = useFormat()
 
   // ── Close confirmation ─────────────────────────────────────────────────
   useEffect(() => {
@@ -74,6 +75,7 @@ export default function App(): React.ReactElement {
     if (isDirty && !window.confirm(t('confirm.newUnsaved'))) return
     resetBlocks([])
     setFileDir(null)
+    setCurrentFilePath(null)
     setError(null)
     setIsDirty(false)
   }, [isDirty, resetBlocks, setFileDir])
@@ -91,6 +93,7 @@ export default function App(): React.ReactElement {
     setError(null)
     setFormat(opened.format)
     setFileDir(opened.fileDir)
+    setCurrentFilePath(opened.filePath)
     resetBlocks(adapter.parse(opened.content))
     setIsDirty(false)
   }, [isDirty, resetBlocks, setFormat, setFileDir])
@@ -127,7 +130,14 @@ export default function App(): React.ReactElement {
     }
     setError(null)
     setFormat(detected)
-    setFileDir(null)
+    const path = window.electronAPI.getPathForFile(file)
+    if (path) {
+      setFileDir(await window.electronAPI.dirname(path))
+      setCurrentFilePath(path)
+    } else {
+      setFileDir(null)
+      setCurrentFilePath(null)
+    }
     resetBlocks(adapter.parse(content))
     setIsDirty(false)
   }, [isDirty, resetBlocks, setFormat, setFileDir, t])
@@ -145,9 +155,21 @@ export default function App(): React.ReactElement {
     if (ok) {
       setFormat(targetFormat)
       setFileDir(saveDir)
+      setCurrentFilePath(filePath)
       setIsDirty(false)
     }
   }, [blocks, setFormat, setFileDir])
+
+  const handleOverwriteSave = useCallback(async () => {
+    if (!currentFilePath) return
+    if (!window.confirm(t('confirm.overwriteSave'))) return
+    let content = adapter.serialize(blocks)
+    if (adapter.id === 'xml') {
+      content = await convertImgPathsToRelative(content, await window.electronAPI.dirname(currentFilePath))
+    }
+    const ok = await window.electronAPI.writeFile(currentFilePath, content)
+    if (ok) setIsDirty(false)
+  }, [currentFilePath, adapter, blocks, t])
 
   return (
     <div
@@ -161,6 +183,7 @@ export default function App(): React.ReactElement {
         <div className="toolbar-actions">
           <button onClick={handleNew}>{t('toolbar.new')}</button>
           <button onClick={handleOpen}>{t('toolbar.open')}</button>
+          <button onClick={handleOverwriteSave} disabled={!currentFilePath}>{t('toolbar.overwrite')}</button>
           <button onClick={() => handleSaveAs('xml')}>{t('toolbar.saveXml')}</button>
           <button onClick={() => handleSaveAs('markdown')}>{t('toolbar.saveMarkdown')}</button>
           <div className="toolbar-divider" />
