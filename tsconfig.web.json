@@ -11,7 +11,8 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "outDir": ".ts-build/web"
   },
   "include": ["src/renderer/src/**/*"]
 }

@@ -6,7 +6,13 @@ out/
 dist/
 release/
 
-# TypeScript compiled output (*.ts sources are the originals)
+# TypeScript compiled output — tsconfig.node.json / tsconfig.web.json emit
+# here (outDir), never next to src/**/*.ts, so bundlers can't accidentally
+# resolve a stale .js over the current .ts source.
+.ts-build/
+
+# Defense-in-depth in case emission ever lands in src/ again (*.ts sources
+# are the originals)
 src/**/*.js
 src/**/*.d.ts
 # Exception: handwritten ambient declaration files (not compiled from .ts)
