@@ -6,22 +6,59 @@ import { useHistory } from './hooks/useHistory'
 import { useSettings } from './contexts/SettingsContext'
 import { useFileContext } from './contexts/FileContext'
 import { useFormat } from './contexts/FormatContext'
-import type { Block } from './types/document'
+import type { Block, RichBlock, TableBlock } from './types/document'
 import type { DocumentFormat } from './formats/types'
+import type { SlateValue, ParagraphChild, ImgElement } from './types/slate'
 
-async function convertImgPathsToRelative(xml: string, saveDir: string): Promise<string> {
-  const doc = new DOMParser().parseFromString(xml, 'application/xml')
-  const imgs = Array.from(doc.querySelectorAll('img'))
-  let modified = false
-  for (const img of imgs) {
-    const src = img.getAttribute('src') ?? ''
-    if (/^([A-Za-z]:[\\/]|\/)/.test(src)) {
-      img.setAttribute('src', await window.electronAPI.relativePath(saveDir, src))
-      modified = true
-    }
-  }
-  if (!modified) return xml
-  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(doc.documentElement)
+const isAbsolutePath = (src: string): boolean => /^([A-Za-z]:[\\/]|\/)/.test(src)
+
+async function convertSlateValueImgSrcs(value: SlateValue, fileDir: string): Promise<SlateValue> {
+  return Promise.all(
+    value.map(async paragraph => ({
+      ...paragraph,
+      children: await Promise.all(
+        paragraph.children.map(async (child): Promise<ParagraphChild> => {
+          if (!('type' in child) || child.type !== 'img' || !isAbsolutePath(child.src)) return child
+          const relSrc = await window.electronAPI.relativePath(fileDir, child.src)
+          return { ...child, src: relSrc } as ImgElement
+        })
+      )
+    }))
+  )
+}
+
+/**
+ * Rewrites absolute <img>/![]() src paths to relative (from fileDir) across
+ * all blocks before serialization, so the conversion is format-agnostic —
+ * shared by both the XML and Markdown save paths instead of operating on
+ * each format's serialized text (which for Markdown would mean re-parsing
+ * ![alt](src) with a fragile regex).
+ */
+async function convertImgSrcsToRelative(blocks: Block[], fileDir: string): Promise<Block[]> {
+  return Promise.all(
+    blocks.map(async (block): Promise<Block> => {
+      if (block.type === 'table') {
+        const tableBlock = block as TableBlock
+        return {
+          ...tableBlock,
+          rows: await Promise.all(
+            tableBlock.rows.map(async row => ({
+              ...row,
+              cells: await Promise.all(
+                row.cells.map(async cell => ({
+                  ...cell,
+                  content: await convertSlateValueImgSrcs(cell.content, fileDir)
+                }))
+              )
+            }))
+          )
+        }
+      }
+      if (block.type === 'math-block') return block
+      const richBlock = block as RichBlock
+      return { ...richBlock, content: await convertSlateValueImgSrcs(richBlock.content, fileDir) }
+    })
+  )
 }
 
 export default function App(): React.ReactElement {
@@ -147,10 +184,8 @@ export default function App(): React.ReactElement {
     if (!saveResult) return
     const { filePath, fileDir: saveDir } = saveResult
     const adapter = FORMAT_ADAPTERS[targetFormat]
-    let content = adapter.serialize(blocks)
-    if (targetFormat === 'xml') {
-      content = await convertImgPathsToRelative(content, saveDir)
-    }
+    const convertedBlocks = await convertImgSrcsToRelative(blocks, saveDir)
+    const content = adapter.serialize(convertedBlocks)
     const ok = await window.electronAPI.writeFile(filePath, content)
     if (ok) {
       setFormat(targetFormat)
@@ -163,10 +198,9 @@ export default function App(): React.ReactElement {
   const handleOverwriteSave = useCallback(async () => {
     if (!currentFilePath) return
     if (!window.confirm(t('confirm.overwriteSave'))) return
-    let content = adapter.serialize(blocks)
-    if (adapter.id === 'xml') {
-      content = await convertImgPathsToRelative(content, await window.electronAPI.dirname(currentFilePath))
-    }
+    const dir = await window.electronAPI.dirname(currentFilePath)
+    const convertedBlocks = await convertImgSrcsToRelative(blocks, dir)
+    const content = adapter.serialize(convertedBlocks)
     const ok = await window.electronAPI.writeFile(currentFilePath, content)
     if (ok) setIsDirty(false)
   }, [currentFilePath, adapter, blocks, t])
