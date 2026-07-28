@@ -169,6 +169,7 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
       editor.children = value
       Editor.normalize(editor, { force: true })
       Transforms.deselect(editor)
+      editor.onChange()
     }
   }, [value, editor])
 
@@ -363,13 +364,6 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
     setChipDialog({ mode: 'closed' })
   }, [chipDialog, editor, onChange])
 
-  // ── Commit on blur ─────────────────────────────────────────────────────
-  const handleBlur = useCallback((): void => {
-    const next = editor.children as SlateValue
-    committedRef.current = next
-    onChange(next)
-  }, [editor, onChange])
-
   // ── Element renderer (defined inside to close over editor/setChipDialog) ──
   const renderElement = useCallback(
     (props: RenderElementProps): React.ReactElement => {
@@ -457,13 +451,18 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
       <Slate
         editor={editor}
         initialValue={value}
-        onChange={() => { /* intentionally empty */ }}
+        onChange={() => {
+          const isContentChange = editor.operations.some(op => op.type !== 'set_selection')
+          if (!isContentChange) return
+          const next = editor.children as SlateValue
+          committedRef.current = next
+          onChange(next)
+        }}
       >
         <Editable
           renderLeaf={renderLeaf}
           renderElement={renderElement}
           placeholder={placeholder ?? t('rte.placeholder')}
-          onBlur={handleBlur}
           className="rte-editable"
           spellCheck={false}
         />
