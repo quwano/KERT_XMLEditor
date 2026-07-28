@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import type { Block, RichBlock, TableBlock, TableRow, MathBlock, SlateValue } from '../types/document'
+import type { Block, RichBlock, RichBlockType, TableBlock, TableRow, MathBlock, SlateValue } from '../types/document'
 import { makeEmptySlateValue, EMPTY_SLATE_VALUE } from '../types/document'
 import RichTextEditor from './RichTextEditor'
 import MathFieldInput from './MathFieldInput'
 import { useSettings } from '../contexts/SettingsContext'
+
+const HEADING_TYPES: RichBlockType[] = ['title1', 'title2', 'title3', 'title4', 'title5']
 
 interface Props {
   block: Block
@@ -36,6 +38,10 @@ export default function BlockItem({
     onChange({ ...(block as MathBlock), formula, mathml })
   }
 
+  const handleLevelChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
+    onChange({ ...(block as RichBlock), type: e.target.value as RichBlockType })
+  }
+
   return (
     <div className={`block-item block-type-${block.type}${isDragging ? ' is-dragging' : ''}`}>
       <div className="block-controls">
@@ -46,7 +52,15 @@ export default function BlockItem({
           onDragEnd={onDragEnd}
           title="ドラッグして並び替え"
         >⠿</span>
-        <span className="block-label">{t(`block.${block.type}`)}</span>
+        {HEADING_TYPES.includes(block.type as RichBlockType) ? (
+          <select className="block-label" value={block.type} onChange={handleLevelChange}>
+            {HEADING_TYPES.map(type => (
+              <option key={type} value={type}>{t(`block.${type}`)}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="block-label">{t(`block.${block.type}`)}</span>
+        )}
         <button onClick={onMoveUp} disabled={isFirst} title={t('block.moveUp')} className="btn-icon">↑</button>
         <button onClick={onMoveDown} disabled={isLast} title={t('block.moveDown')} className="btn-icon">↓</button>
         <button onClick={onRemove} title={t('block.remove')} className="btn-icon btn-remove">✕</button>
