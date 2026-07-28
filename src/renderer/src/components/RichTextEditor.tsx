@@ -3,33 +3,54 @@ import { createEditor, Editor, Element as SlateElement, Path, Range, Text, Trans
 import { Editable, ReactEditor, Slate, withReact } from 'slate-react'
 import type { RenderElementProps, RenderLeafProps } from 'slate-react'
 import { withHistory } from 'slate-history'
+import { convertLatexToMarkup } from 'mathlive/ssr'
 import type {
   CustomText, MarkType, SlateValue,
-  YomikaeElement, RubyElement, ImgElement, ChipElement
+  YomikaeElement, RubyElement, ImgElement, MathInlineElement, ChipElement
 } from '../types/slate'
 import { applyMarkSafely, selectionHasUnsafeChip } from '../utils/markUtils'
+import type { ChipTypePolicy } from '../utils/markUtils'
 import { useSettings } from '../contexts/SettingsContext'
 import { useFileContext } from '../contexts/FileContext'
+import { useFormat } from '../contexts/FormatContext'
+import MathFieldInput from './MathFieldInput'
 
-const CHIP_TYPES = new Set<string>(['yomikae', 'ruby', 'img'])
+/** Static, non-interactive typeset markup for an inline formula preview. */
+function renderMathMarkup(formula: string): string {
+  if (!formula.trim()) return ''
+  try {
+    return convertLatexToMarkup(formula, { defaultMode: 'inline-math' })
+  } catch {
+    return formula
+  }
+}
 
 /** Build className string for a chip, reflecting any applied marks. */
-function chipClassNames(base: string, chip: { g?: boolean; u?: boolean; sup?: boolean; sub?: boolean }): string {
+function chipClassNames(
+  base: string,
+  chip: { g?: boolean; frame?: boolean; u?: boolean; sup?: boolean; sub?: boolean }
+): string {
   return [
     'chip', base,
-    chip.g   ? 'chip-mark-g'   : '',
-    chip.u   ? 'chip-mark-u'   : '',
-    chip.sup ? 'chip-mark-sup' : '',
-    chip.sub ? 'chip-mark-sub' : '',
+    chip.g     ? 'chip-mark-g'     : '',
+    chip.frame ? 'chip-mark-frame' : '',
+    chip.u     ? 'chip-mark-u'     : '',
+    chip.sup   ? 'chip-mark-sup'   : '',
+    chip.sub   ? 'chip-mark-sub'   : '',
   ].filter(Boolean).join(' ')
 }
 
 // ── withChips plugin ───────────────────────────────────────────────────────
 
-function withChips(editor: ReturnType<typeof createEditor>) {
+/**
+ * `chipTypesRef` is read at call time rather than captured once, so the
+ * active format's chip-type set can change without recreating the editor
+ * (which would drop Slate's internal history/state).
+ */
+function withChips(editor: ReturnType<typeof createEditor>, chipTypesRef: { current: ReadonlySet<string> }) {
   const { isInline, isVoid } = editor
-  editor.isInline = el => CHIP_TYPES.has((el as { type: string }).type) || isInline(el)
-  editor.isVoid   = el => CHIP_TYPES.has((el as { type: string }).type) || isVoid(el)
+  editor.isInline = el => chipTypesRef.current.has((el as { type: string }).type) || isInline(el)
+  editor.isVoid   = el => chipTypesRef.current.has((el as { type: string }).type) || isVoid(el)
   return editor
 }
 
@@ -46,10 +67,11 @@ function Leaf({ attributes, children, leaf }: RenderLeafProps): React.ReactEleme
   const l = leaf as CustomText
   let node: React.ReactNode = children
 
-  if (l.sub) node = <sub className="mark-sub">{node}</sub>
-  if (l.sup) node = <sup className="mark-sup">{node}</sup>
-  if (l.u)   node = <span className="mark-u">{node}</span>
-  if (l.g)   node = <span className="mark-g">{node}</span>
+  if (l.sub)   node = <sub className="mark-sub">{node}</sub>
+  if (l.sup)   node = <sup className="mark-sup">{node}</sup>
+  if (l.u)     node = <span className="mark-u">{node}</span>
+  if (l.frame) node = <span className="mark-frame">{node}</span>
+  if (l.g)     node = <span className="mark-g">{node}</span>
 
   return <span {...attributes}>{node}</span>
 }
@@ -108,9 +130,11 @@ type ChipDialogState =
   | { mode: 'insert-yomikae'; capturedSelection: Range; value: string; yomi: string; marks: Partial<Record<MarkType, boolean>> }
   | { mode: 'insert-ruby';    capturedSelection: Range; value: string; yomi: string; marks: Partial<Record<MarkType, boolean>> }
   | { mode: 'insert-img';     src: string; alt: string }
+  | { mode: 'insert-math-inline'; formula: string; mathml: string }
   | { mode: 'edit-yomikae';   path: Path; value: string; yomi: string }
   | { mode: 'edit-ruby';      path: Path; value: string; yomi: string }
   | { mode: 'edit-img';       path: Path; src: string;  alt: string }
+  | { mode: 'edit-math-inline'; path: Path; formula: string; mathml: string }
 
 // ── RichTextEditor ─────────────────────────────────────────────────────────
 
@@ -122,8 +146,18 @@ interface Props {
 
 export default function RichTextEditor({ value, onChange, placeholder }: Props): React.ReactElement {
   const { t } = useSettings()
+  const { adapter } = useFormat()
+
+  const chipTypesRef = useRef<ReadonlySet<string>>(adapter.chipTypes)
+  useEffect(() => { chipTypesRef.current = adapter.chipTypes }, [adapter])
+
+  const chipPolicy: ChipTypePolicy = useMemo(
+    () => ({ safeChipTypes: adapter.safeChipTypes, unsafeChipTypes: adapter.unsafeChipTypes }),
+    [adapter]
+  )
+
   const editor = useMemo(
-    () => withChips(withHistory(withReact(createEditor()))),
+    () => withChips(withHistory(withReact(createEditor())), chipTypesRef),
     []
   )
 
@@ -173,22 +207,26 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
   // ── Mark toggle ────────────────────────────────────────────────────────
   const handleToggle = useCallback(
     (mark: MarkType): void => {
-      const err = applyMarkSafely(editor, mark)
+      const err = applyMarkSafely(editor, mark, chipPolicy)
       if (err) { setMarkError(err); return }
       setMarkError(null)
       const next = editor.children as SlateValue
       committedRef.current = next
       onChange(next)
     },
-    [editor, onChange]
+    [editor, onChange, chipPolicy]
   )
 
   // ── Chip insert (from context menu) ───────────────────────────────────
   const handleInsertChip = useCallback(
-    (type: 'yomikae' | 'ruby' | 'img'): void => {
+    (type: 'yomikae' | 'ruby' | 'img' | 'math-inline'): void => {
       const sel = editor.selection
       if (type === 'img') {
         setChipDialog({ mode: 'insert-img', src: '', alt: '' })
+        return
+      }
+      if (type === 'math-inline') {
+        setChipDialog({ mode: 'insert-math-inline', formula: '', mathml: '' })
         return
       }
       if (!sel || Range.isCollapsed(sel)) return
@@ -197,10 +235,11 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
       const marks: Partial<Record<MarkType, boolean>> = {}
       for (const [node] of Editor.nodes(editor, { at: sel, match: n => Text.isText(n) })) {
         const leaf = node as CustomText
-        if (leaf.g)   marks.g   = true
-        if (leaf.u)   marks.u   = true
-        if (leaf.sup) marks.sup = true
-        if (leaf.sub) marks.sub = true
+        if (leaf.g)     marks.g     = true
+        if (leaf.frame) marks.frame = true
+        if (leaf.u)     marks.u     = true
+        if (leaf.sup)   marks.sup   = true
+        if (leaf.sub)   marks.sub   = true
       }
       setChipDialog({
         mode: `insert-${type}` as 'insert-yomikae' | 'insert-ruby',
@@ -218,6 +257,8 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
     (chip: ChipElement, path: Path): void => {
       if (chip.type === 'img') {
         setChipDialog({ mode: 'edit-img', path, src: chip.src, alt: chip.alt ?? '' })
+      } else if (chip.type === 'math-inline') {
+        setChipDialog({ mode: 'edit-math-inline', path, formula: chip.formula, mathml: chip.mathml })
       } else {
         setChipDialog({
           mode: `edit-${chip.type}` as 'edit-yomikae' | 'edit-ruby',
@@ -253,6 +294,17 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
     [editor, onChange]
   )
 
+  // ── Chip delete (math-inline: hard delete, no plain-text fallback) ─────
+  const handleDeleteChip = useCallback(
+    (path: Path): void => {
+      Transforms.removeNodes(editor, { at: path })
+      const next = editor.children as SlateValue
+      committedRef.current = next
+      onChange(next)
+    },
+    [editor, onChange]
+  )
+
   // ── Chip dialog submit ─────────────────────────────────────────────────
   const handleChipDialogSubmit = useCallback((): void => {
     const state = chipDialog
@@ -277,6 +329,14 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
         children: [{ text: '' }]
       }
       Transforms.insertNodes(editor, imgNode)
+    } else if (state.mode === 'insert-math-inline') {
+      const mathNode: MathInlineElement = {
+        type: 'math-inline',
+        formula: state.formula,
+        mathml: state.mathml,
+        children: [{ text: '' }]
+      }
+      Transforms.insertNodes(editor, mathNode)
     } else if (state.mode === 'edit-yomikae' || state.mode === 'edit-ruby') {
       Transforms.setNodes(
         editor,
@@ -287,6 +347,12 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
       Transforms.setNodes(
         editor,
         { src: state.src, alt: state.alt || undefined },
+        { at: state.path }
+      )
+    } else if (state.mode === 'edit-math-inline') {
+      Transforms.setNodes(
+        editor,
+        { formula: state.formula, mathml: state.mathml },
         { at: state.path }
       )
     }
@@ -354,11 +420,30 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
             </ImgChip>
           )
         }
+        case 'math-inline': {
+          const chip = props.element as MathInlineElement
+          const markup = renderMathMarkup(chip.formula)
+          return (
+            <span
+              {...props.attributes}
+              contentEditable={false}
+              className="chip chip-math-inline"
+              onMouseDown={e => e.preventDefault()}
+              onContextMenu={() => handleChipContextMenu(chip)}
+              onClick={() => handleEditChip(chip, ReactEditor.findPath(editor, chip))}
+            >
+              {markup
+                ? <span className="chip-math-markup" dangerouslySetInnerHTML={{ __html: markup }} />
+                : <span className="chip-math-markup chip-math-empty">{t('chipDialog.formulaLabel')}</span>}
+              {props.children}
+            </span>
+          )
+        }
         default:
           return <p className="rte-paragraph" {...props.attributes}>{props.children}</p>
       }
     },
-    [editor, handleEditChip]
+    [editor, handleEditChip, t]
   )
 
   const renderLeaf = useCallback(
@@ -402,9 +487,13 @@ export default function RichTextEditor({ value, onChange, placeholder }: Props):
           x={ctxMenu.x}
           y={ctxMenu.y}
           editor={editor}
+          markOrder={adapter.markOrder}
+          chipTypes={adapter.chipTypes}
+          chipPolicy={chipPolicy}
           onToggle={handleToggle}
           onInsertChip={handleInsertChip}
           onRemoveChip={handleRemoveChip}
+          onDeleteChip={handleDeleteChip}
           onClose={() => setCtxMenu(null)}
         />
       )}
@@ -427,14 +516,18 @@ interface ContextMenuProps {
   x: number
   y: number
   editor: Editor
+  markOrder: readonly MarkType[]
+  chipTypes: ReadonlySet<string>
+  chipPolicy: ChipTypePolicy
   onToggle: (mark: MarkType) => void
-  onInsertChip: (type: 'yomikae' | 'ruby' | 'img') => void
+  onInsertChip: (type: 'yomikae' | 'ruby' | 'img' | 'math-inline') => void
   onRemoveChip: (path: Path, value: string) => void
+  onDeleteChip: (path: Path) => void
   onClose: () => void
 }
 
 function ContextMenu({
-  x, y, editor, onToggle, onInsertChip, onRemoveChip, onClose
+  x, y, editor, markOrder, chipTypes, chipPolicy, onToggle, onInsertChip, onRemoveChip, onDeleteChip, onClose
 }: ContextMenuProps): React.ReactElement {
   const { t } = useSettings()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -451,11 +544,10 @@ function ContextMenu({
     })
   }, [x, y])
 
-  const blocked  = selectionHasUnsafeChip(editor)
+  const blocked  = selectionHasUnsafeChip(editor, chipPolicy)
   const hasRange = editor.selection !== null && !Range.isCollapsed(editor.selection)
-  const marks: MarkType[] = ['g', 'u', 'sup', 'sub']
 
-  // Collect removable chips (yomikae / ruby) from current selection
+  // Collect removable chips (yomikae / ruby: replace with plain text) from current selection
   const removableChips = editor.selection
     ? (Array.from(
         Editor.nodes(editor, {
@@ -468,6 +560,16 @@ function ContextMenu({
       ) as [YomikaeElement | RubyElement, Path][])
     : []
 
+  // Collect math-inline chips from current selection (hard delete, no text fallback)
+  const mathChips = editor.selection
+    ? (Array.from(
+        Editor.nodes(editor, {
+          at: editor.selection,
+          match: n => SlateElement.isElement(n) && (n as { type: string }).type === 'math-inline'
+        })
+      ) as [MathInlineElement, Path][])
+    : []
+
   return (
     <div
       ref={menuRef}
@@ -476,7 +578,7 @@ function ContextMenu({
       onMouseDown={e => e.preventDefault()}
     >
       {/* Mark items */}
-      {marks.map(mark => {
+      {markOrder.map(mark => {
         const active   = isMarkActive(editor, mark)
         const isSup    = mark === 'sup'
         const isSub    = mark === 'sub'
@@ -508,26 +610,40 @@ function ContextMenu({
       <hr className="rte-menu-divider" />
 
       {/* Chip insert items */}
-      <button
-        className={['rte-menu-item', !hasRange ? 'disabled' : ''].filter(Boolean).join(' ')}
-        disabled={!hasRange}
-        onClick={() => { onInsertChip('yomikae'); onClose() }}
-      >
-        {t('rte.insertYomikae')}
-      </button>
-      <button
-        className={['rte-menu-item', !hasRange ? 'disabled' : ''].filter(Boolean).join(' ')}
-        disabled={!hasRange}
-        onClick={() => { onInsertChip('ruby'); onClose() }}
-      >
-        {t('rte.insertRuby')}
-      </button>
-      <button
-        className="rte-menu-item"
-        onClick={() => { onInsertChip('img'); onClose() }}
-      >
-        {t('rte.insertImg')}
-      </button>
+      {chipTypes.has('yomikae') && (
+        <button
+          className={['rte-menu-item', !hasRange ? 'disabled' : ''].filter(Boolean).join(' ')}
+          disabled={!hasRange}
+          onClick={() => { onInsertChip('yomikae'); onClose() }}
+        >
+          {t('rte.insertYomikae')}
+        </button>
+      )}
+      {chipTypes.has('ruby') && (
+        <button
+          className={['rte-menu-item', !hasRange ? 'disabled' : ''].filter(Boolean).join(' ')}
+          disabled={!hasRange}
+          onClick={() => { onInsertChip('ruby'); onClose() }}
+        >
+          {t('rte.insertRuby')}
+        </button>
+      )}
+      {chipTypes.has('img') && (
+        <button
+          className="rte-menu-item"
+          onClick={() => { onInsertChip('img'); onClose() }}
+        >
+          {t('rte.insertImg')}
+        </button>
+      )}
+      {chipTypes.has('math-inline') && (
+        <button
+          className="rte-menu-item"
+          onClick={() => { onInsertChip('math-inline'); onClose() }}
+        >
+          {t('rte.insertMathInline')}
+        </button>
+      )}
 
       {/* Chip remove items (only shown when removable chips are in selection) */}
       {removableChips.length > 0 && <hr className="rte-menu-divider" />}
@@ -540,6 +656,21 @@ function ContextMenu({
             onClick={() => { onRemoveChip(path, chip.value); onClose() }}
           >
             {t('rte.removeChip', { preview, kind: t(`chip.${chip.type}`) })}
+          </button>
+        )
+      })}
+
+      {/* Math-inline delete items (hard delete — no plain-text fallback) */}
+      {mathChips.length > 0 && <hr className="rte-menu-divider" />}
+      {mathChips.map(([chip, path]) => {
+        const preview = chip.formula.length > 8 ? chip.formula.slice(0, 8) + '…' : chip.formula
+        return (
+          <button
+            key={path.join('-')}
+            className="rte-menu-item"
+            onClick={() => { onDeleteChip(path); onClose() }}
+          >
+            {t('rte.removeMathChip', { preview })}
           </button>
         )
       })}
@@ -567,14 +698,17 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
   const isYomikae = state.mode.includes('yomikae')
   const isRuby    = state.mode.includes('ruby')
   const isImg     = state.mode.includes('img')
+  const isMath    = state.mode.includes('math-inline')
   const isInsert  = state.mode.startsWith('insert')
 
   const title = isInsert ? t('chipDialog.insert') : t('chipDialog.edit')
-  const kind  = isYomikae ? t('chip.yomikae') : isRuby ? t('chip.ruby') : t('chip.img')
+  const kind  = isYomikae ? t('chip.yomikae') : isRuby ? t('chip.ruby') : isMath ? t('chip.math-inline') : t('chip.img')
   const submitLabel = isInsert ? t('chipDialog.submitInsert') : t('chipDialog.submitUpdate')
 
   const canSubmit = isImg
     ? !!(state as { src: string }).src
+    : isMath
+    ? !!(state as { formula: string }).formula
     : true
 
   const handleBrowse = async (): Promise<void> => {
@@ -583,7 +717,9 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
   }
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Enter' && canSubmit) { e.preventDefault(); onSubmit() }
+    // Math formulas may involve multi-key input inside <math-field>; never
+    // treat Enter there as "submit the dialog".
+    if (e.key === 'Enter' && !isMath && canSubmit) { e.preventDefault(); onSubmit() }
     if (e.key === 'Escape') onCancel()
   }
 
@@ -641,6 +777,16 @@ function ChipDialog({ state, onChange, onSubmit, onCancel }: ChipDialogProps): R
               />
             </label>
           </>
+        )}
+
+        {isMath && (
+          <label>
+            {t('chipDialog.formulaLabel')}
+            <MathFieldInput
+              formula={(state as { formula: string }).formula}
+              onChange={({ formula, mathml }) => onChange({ formula, mathml })}
+            />
+          </label>
         )}
 
         <div className="chip-dialog-actions">

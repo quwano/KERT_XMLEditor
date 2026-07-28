@@ -3,16 +3,34 @@
  * Uses DOMParser / XMLSerializer only — no regex.
  */
 
-import type { Block, RichBlock, RichBlockType, TableBlock, TableRow, TableCell } from '../types/document'
+import type { Block, RichBlock, RichBlockType, TableBlock, TableRow, TableCell, MathBlock } from '../../types/document'
 import type {
   CustomText, MarkType, SlateValue,
-  ChipElement, YomikaeElement, RubyElement, ImgElement, ParagraphChild
-} from '../types/slate'
-import { EMPTY_SLATE_VALUE } from '../types/slate'
+  ChipElement, YomikaeElement, RubyElement, ImgElement, MathInlineElement, ParagraphChild
+} from '../../types/slate'
+import { EMPTY_SLATE_VALUE } from '../../types/slate'
 
 let _idCounter = 0
 function genId(): string {
   return `id_${++_idCounter}_${Math.random().toString(36).slice(2, 7)}`
+}
+
+const MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
+
+/** True for a <math> element in the MathML namespace (regardless of prefix). */
+function isMathMLElement(el: Element): boolean {
+  return el.namespaceURI === MATHML_NS && el.localName === 'math'
+}
+
+/** Pull the LaTeX source back out of a MathLive-produced <annotation encoding="application/x-tex">. */
+function extractLatexFromMathML(mathEl: Element): string {
+  const annotations = mathEl.getElementsByTagNameNS(MATHML_NS, 'annotation')
+  for (const ann of Array.from(annotations)) {
+    if (ann.getAttribute('encoding') === 'application/x-tex') {
+      return ann.textContent ?? ''
+    }
+  }
+  return ''
 }
 
 // ── Parse ──────────────────────────────────────────────────────────────────
@@ -26,6 +44,14 @@ export function parseXmlToBlocks(xmlString: string): Block[] {
   for (const child of Array.from(root.children)) {
     if (child.tagName === 'table') {
       blocks.push(parseTable(child))
+    } else if (isMathMLElement(child)) {
+      const mathBlock: MathBlock = {
+        id: genId(),
+        type: 'math-block',
+        formula: extractLatexFromMathML(child),
+        mathml: new XMLSerializer().serializeToString(child)
+      }
+      blocks.push(mathBlock)
     } else {
       const block: RichBlock = {
         id: genId(),
@@ -66,7 +92,7 @@ function parseTr(trEl: Element): TableRow {
 
 /**
  * Convert a rich-text XML element (p, title1-5, td, th) into a Slate value.
- * Handles nested marks: <g>, <u>, <sup>, <sub>, and chip elements.
+ * Handles nested marks: <g>, <frame>, <u>, <sup>, <sub>, and chip elements.
  */
 function parseRichContent(el: Element): SlateValue {
   const children = parseMixedContent(el, {})
@@ -74,7 +100,7 @@ function parseRichContent(el: Element): SlateValue {
   return [{ type: 'paragraph', children }]
 }
 
-type ActiveMarks = { g?: boolean; u?: boolean; sup?: boolean; sub?: boolean }
+type ActiveMarks = { g?: boolean; frame?: boolean; u?: boolean; sup?: boolean; sub?: boolean }
 
 /**
  * Recursively walk DOM child nodes and collect ParagraphChild nodes
@@ -93,8 +119,23 @@ function parseMixedContent(node: Element | DocumentFragment, marks: ActiveMarks)
       }
     } else if (child.nodeType === Node.ELEMENT_NODE) {
       const childEl = child as Element
+
+      if (isMathMLElement(childEl)) {
+        // Inline math chip. Marks are not applicable (MathInlineElement does
+        // not extend ChipMarks) — any ancestor marks are intentionally dropped.
+        const chip: MathInlineElement = {
+          type: 'math-inline',
+          formula: extractLatexFromMathML(childEl),
+          mathml: new XMLSerializer().serializeToString(childEl),
+          children: [{ text: '' }]
+        }
+        result.push(chip)
+        continue
+      }
+
       switch (childEl.tagName) {
         case 'g':
+        case 'frame':
         case 'u':
         case 'sup':
         case 'sub': {
@@ -111,10 +152,11 @@ function parseMixedContent(node: Element | DocumentFragment, marks: ActiveMarks)
             type: childEl.tagName as 'yomikae' | 'ruby',
             value: childEl.textContent ?? '',
             yomi: childEl.getAttribute('yomi') ?? '',
-            ...(marks.g   ? { g:   true } : {}),
-            ...(marks.u   ? { u:   true } : {}),
-            ...(marks.sup ? { sup: true } : {}),
-            ...(marks.sub ? { sub: true } : {}),
+            ...(marks.g     ? { g:     true } : {}),
+            ...(marks.frame ? { frame: true } : {}),
+            ...(marks.u     ? { u:     true } : {}),
+            ...(marks.sup   ? { sup:   true } : {}),
+            ...(marks.sub   ? { sub:   true } : {}),
             children: [{ text: '' }]
           }
           result.push(chip)
@@ -126,10 +168,11 @@ function parseMixedContent(node: Element | DocumentFragment, marks: ActiveMarks)
             type: 'img',
             src: childEl.getAttribute('src') ?? '',
             ...(altAttr !== null ? { alt: altAttr } : {}),
-            ...(marks.g   ? { g:   true } : {}),
-            ...(marks.u   ? { u:   true } : {}),
-            ...(marks.sup ? { sup: true } : {}),
-            ...(marks.sub ? { sub: true } : {}),
+            ...(marks.g     ? { g:     true } : {}),
+            ...(marks.frame ? { frame: true } : {}),
+            ...(marks.u     ? { u:     true } : {}),
+            ...(marks.sup   ? { sup:   true } : {}),
+            ...(marks.sub   ? { sub:   true } : {}),
             children: [{ text: '' }]
           }
           result.push(chip)
@@ -151,10 +194,11 @@ function parseMixedContent(node: Element | DocumentFragment, marks: ActiveMarks)
 
 function buildLeaf(text: string, marks: ActiveMarks): CustomText {
   const leaf: CustomText = { text }
-  if (marks.g)   leaf.g   = true
-  if (marks.u)   leaf.u   = true
-  if (marks.sup) leaf.sup = true
-  if (marks.sub) leaf.sub = true
+  if (marks.g)     leaf.g     = true
+  if (marks.frame) leaf.frame = true
+  if (marks.u)     leaf.u     = true
+  if (marks.sup)   leaf.sup   = true
+  if (marks.sub)   leaf.sub   = true
   return leaf
 }
 
@@ -167,6 +211,8 @@ export function serializeBlocksToXml(blocks: Block[]): string {
   for (const block of blocks) {
     if (block.type === 'table') {
       root.appendChild(serializeTable(doc, block as TableBlock))
+    } else if (block.type === 'math-block') {
+      root.appendChild(buildMathElement(doc, block.mathml, block.formula))
     } else {
       const richBlock = block as RichBlock
       const el = doc.createElement(richBlock.type)
@@ -196,9 +242,9 @@ function serializeTable(doc: Document, tableBlock: TableBlock): Element {
 
 /**
  * Mark processing order: outermost → innermost in XML output.
- * g > u > sup > sub ensures XSD validity (<sup>/<sub> contain plain text only).
+ * g > frame > u > sup > sub ensures XSD validity (<sup>/<sub> contain plain text only).
  */
-const MARK_ORDER: readonly MarkType[] = ['g', 'u', 'sup', 'sub']
+const MARK_ORDER: readonly MarkType[] = ['g', 'frame', 'u', 'sup', 'sub']
 
 /**
  * Append the serialized rich-text content of a Slate value into `parent`.
@@ -297,6 +343,8 @@ function serializeChipCore(doc: Document, chip: ChipElement): Element {
     el.setAttribute('src', chip.src)
     if (chip.alt !== undefined && chip.alt !== '') el.setAttribute('alt', chip.alt)
     return el
+  } else if (chip.type === 'math-inline') {
+    return buildMathElement(doc, chip.mathml, chip.formula)
   } else {
     // yomikae or ruby
     const el = doc.createElement(chip.type)
@@ -304,4 +352,25 @@ function serializeChipCore(doc: Document, chip: ChipElement): Element {
     if (chip.yomi) el.setAttribute('yomi', chip.yomi)
     return el
   }
+}
+
+/**
+ * Build a MathML <math> element for embedding in the document, adopting
+ * the stored `mathml` string as-is (produced by MathLive at edit time).
+ * Falls back to a minimal LaTeX-only annotation wrapper if `mathml` is
+ * empty (e.g. a math-inline/math-block round-tripped through Markdown,
+ * which only preserves the LaTeX source).
+ */
+function buildMathElement(doc: Document, mathml: string, formula: string): Element {
+  const source = mathml || (
+    `<math xmlns="${MATHML_NS}"><semantics><mrow/>` +
+    `<annotation encoding="application/x-tex">${escapeXmlText(formula)}</annotation>` +
+    `</semantics></math>`
+  )
+  const fragDoc = new DOMParser().parseFromString(source, 'application/xml')
+  return doc.importNode(fragDoc.documentElement, true)
+}
+
+function escapeXmlText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

@@ -1,10 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+type DocumentFormat = 'xml' | 'markdown'
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  openFile: (): Promise<{ content: string; fileDir: string } | null> =>
+  openFile: (): Promise<{ format: DocumentFormat; content: string; fileDir: string } | null> =>
     ipcRenderer.invoke('file:open'),
-  saveFile: (): Promise<{ filePath: string; fileDir: string } | null> =>
-    ipcRenderer.invoke('file:save'),
+  saveFile: (format: DocumentFormat): Promise<{ filePath: string; fileDir: string } | null> =>
+    ipcRenderer.invoke('file:save', format),
   writeFile: (filePath: string, content: string): Promise<boolean> =>
     ipcRenderer.invoke('file:write', filePath, content),
   relativePath: (from: string, to: string): Promise<string> =>

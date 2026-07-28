@@ -4,31 +4,28 @@
  *
  * Rules (confirmed in CLAUDE.md):
  *
- * • g / u / sup / sub marks applied to a selection that contains yomikae, ruby,
- *   or img chips: ALLOWED — marks are applied to surrounding text leaves AND
- *   stored as properties on the chip elements themselves (serialised as wrapper
- *   elements, e.g. <g><yomikae yomi="…">…</yomikae></g>).
+ * • g / frame / u / sup / sub marks applied to a selection that contains
+ *   yomikae, ruby, or img chips: ALLOWED — marks are applied to surrounding
+ *   text leaves AND stored as properties on the chip elements themselves
+ *   (serialised as wrapper elements, e.g. <g><yomikae yomi="…">…</yomikae></g>).
  *
  * • sup and sub are mutually exclusive:
  *     Applying one removes the other from both text leaves and chip elements.
+ *
+ * • Safe/unsafe chip types are format-specific (e.g. math-inline formulas
+ *   cannot carry marks) and are supplied by the caller via `ChipTypePolicy`
+ *   rather than hardcoded here, so this file stays shared across formats.
  */
 
 import { Editor, Range, Transforms, Element as SlateElement } from 'slate'
 import type { MarkType } from '../types/slate'
 
-// ── Chip-type policy ───────────────────────────────────────────────────────
-
-/**
- * Chip types whose surrounding text AND the chip itself CAN carry marks.
- * All current chip types are safe — marks are serialised as wrapper elements.
- */
-const SAFE_CHIP_TYPES = new Set<string>(['yomikae', 'ruby', 'img'])
-
-/**
- * Chip types that make the entire mark operation impossible.
- * (Reserved for hypothetical future chip types; none currently active.)
- */
-const UNSAFE_CHIP_TYPES = new Set<string>(['sup-chip', 'sub-chip'])
+export interface ChipTypePolicy {
+  /** Chip types whose surrounding text AND the chip itself CAN carry marks. */
+  safeChipTypes: ReadonlySet<string>
+  /** Chip types that make the entire mark operation impossible. */
+  unsafeChipTypes: ReadonlySet<string>
+}
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -39,9 +36,11 @@ const UNSAFE_CHIP_TYPES = new Set<string>(['sup-chip', 'sub-chip'])
  * @returns `null` on success, or a Japanese error string if the operation
  *          cannot be performed.
  */
-export function applyMarkSafely(editor: Editor, mark: MarkType): string | null {
+export function applyMarkSafely(editor: Editor, mark: MarkType, policy: ChipTypePolicy): string | null {
   const { selection } = editor
   if (!selection || Range.isCollapsed(selection)) return null
+
+  const { safeChipTypes, unsafeChipTypes } = policy
 
   // ── 1. Scan for unsafe chip elements inside the selection ──────────────
   for (const [node] of Editor.nodes(editor, {
@@ -51,13 +50,13 @@ export function applyMarkSafely(editor: Editor, mark: MarkType): string | null {
     const t = (node as { type: string }).type
     if (t === 'paragraph') continue
 
-    if (UNSAFE_CHIP_TYPES.has(t)) {
+    if (unsafeChipTypes.has(t)) {
       const label = t
       return `選択範囲に「${label}」が含まれているためマークアップできません。`
     }
-    // SAFE_CHIP_TYPES: handled below — marks are applied to chip properties too
+    // safeChipTypes: handled below — marks are applied to chip properties too
     // Unknown element: treat conservatively
-    if (!SAFE_CHIP_TYPES.has(t)) {
+    if (!safeChipTypes.has(t)) {
       return `不明な要素「${t}」の境界をまたいだマークアップはできません。`
     }
   }
@@ -70,7 +69,7 @@ export function applyMarkSafely(editor: Editor, mark: MarkType): string | null {
     // Also remove opposite from chip elements
     for (const [, path] of Editor.nodes(editor, {
       at: selection,
-      match: n => SlateElement.isElement(n) && SAFE_CHIP_TYPES.has((n as { type: string }).type)
+      match: n => SlateElement.isElement(n) && safeChipTypes.has((n as { type: string }).type)
     })) {
       Transforms.unsetNodes(editor, opposite, { at: path })
     }
@@ -87,7 +86,7 @@ export function applyMarkSafely(editor: Editor, mark: MarkType): string | null {
   // ── 4. Mirror the same toggle on chip elements in the selection ────────
   for (const [, path] of Editor.nodes(editor, {
     at: selection,
-    match: n => SlateElement.isElement(n) && SAFE_CHIP_TYPES.has((n as { type: string }).type)
+    match: n => SlateElement.isElement(n) && safeChipTypes.has((n as { type: string }).type)
   })) {
     if (isActive) {
       Transforms.unsetNodes(editor, mark, { at: path })
@@ -103,9 +102,11 @@ export function applyMarkSafely(editor: Editor, mark: MarkType): string | null {
  * Return true if any unsafe chip element is present in the current selection.
  * Used to grey out menu items before the user clicks.
  */
-export function selectionHasUnsafeChip(editor: Editor): boolean {
+export function selectionHasUnsafeChip(editor: Editor, policy: ChipTypePolicy): boolean {
   const { selection } = editor
   if (!selection || Range.isCollapsed(selection)) return false
+
+  const { safeChipTypes, unsafeChipTypes } = policy
 
   for (const [node] of Editor.nodes(editor, {
     at: selection,
@@ -113,8 +114,8 @@ export function selectionHasUnsafeChip(editor: Editor): boolean {
   })) {
     const t = (node as { type: string }).type
     if (t === 'paragraph') continue
-    if (UNSAFE_CHIP_TYPES.has(t)) return true
-    if (!SAFE_CHIP_TYPES.has(t)) return true  // unknown inline element
+    if (unsafeChipTypes.has(t)) return true
+    if (!safeChipTypes.has(t)) return true // unknown inline element
   }
   return false
 }

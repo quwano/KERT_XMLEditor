@@ -10,6 +10,8 @@
         <xs:element ref="title5"/>
         <xs:element ref="p"/>
         <xs:element ref="table"/>
+        <!-- math-block: a raw MathML <math> element, allowed as a sibling of p/table. -->
+        <xs:any namespace="http://www.w3.org/1998/Math/MathML" processContents="skip" minOccurs="0"/>
       </xs:choice>
     </xs:complexType>
   </xs:element>
@@ -58,6 +60,7 @@
   </xs:element>
   <xs:element name="u" type="rich_text"/>
   <xs:element name="g" type="rich_text"/>
+  <xs:element name="frame" type="rich_text"/>
   <xs:element name="img">
     <xs:complexType>
       <xs:attribute name="src" type="xs:string" use="required"/>
@@ -72,7 +75,10 @@
       <xs:element ref="ruby"/>
       <xs:element ref="g"/>
       <xs:element ref="u"/>
+      <xs:element ref="frame"/>
       <xs:element ref="img"/>
+      <!-- math-inline: a raw MathML <math> element, usable anywhere inline. -->
+      <xs:any namespace="http://www.w3.org/1998/Math/MathML" processContents="skip" minOccurs="0"/>
     </xs:choice>
   </xs:complexType>
 </xs:schema>

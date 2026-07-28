@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import DocumentEditor from './components/DocumentEditor'
 import SettingsDialog from './components/SettingsDialog'
-import { parseXmlToBlocks, serializeBlocksToXml } from './utils/xmlParser'
-import { validateXml } from './utils/xmlValidator'
+import { FORMAT_ADAPTERS, detectFormatFromFilename } from './formats/registry'
 import { useHistory } from './hooks/useHistory'
 import { useSettings } from './contexts/SettingsContext'
 import { useFileContext } from './contexts/FileContext'
+import { useFormat } from './contexts/FormatContext'
 import type { Block } from './types/document'
+import type { DocumentFormat } from './formats/types'
 
 async function convertImgPathsToRelative(xml: string, saveDir: string): Promise<string> {
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
@@ -32,6 +33,7 @@ export default function App(): React.ReactElement {
   const [isDragOver, setIsDragOver] = useState(false)
   const { t } = useSettings()
   const { setFileDir } = useFileContext()
+  const { setFormat } = useFormat()
 
   // ── Close confirmation ─────────────────────────────────────────────────
   useEffect(() => {
@@ -80,17 +82,18 @@ export default function App(): React.ReactElement {
     if (isDirty && !window.confirm(t('confirm.openUnsaved'))) return
     const opened = await window.electronAPI.openFile()
     if (opened === null) return
-    const { content: xml, fileDir } = opened
-    const result = validateXml(xml)
+    const adapter = FORMAT_ADAPTERS[opened.format]
+    const result = adapter.validate(opened.content)
     if (!result.valid) {
       setError(`${t('error.xmlValidation')}\n${result.errors.join('\n')}`)
       return
     }
     setError(null)
-    setFileDir(fileDir)
-    resetBlocks(parseXmlToBlocks(xml))
+    setFormat(opened.format)
+    setFileDir(opened.fileDir)
+    resetBlocks(adapter.parse(opened.content))
     setIsDirty(false)
-  }, [isDirty, resetBlocks, setFileDir])
+  }, [isDirty, resetBlocks, setFormat, setFileDir])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -109,34 +112,42 @@ export default function App(): React.ReactElement {
     e.stopPropagation()
     setIsDragOver(false)
     const file = e.dataTransfer.files[0]
-    if (!file || !file.name.endsWith('.xml')) {
-      setError(t('error.dropNotXml'))
+    const detected = file ? detectFormatFromFilename(file.name) : null
+    if (!file || detected === null) {
+      setError(t('error.dropUnsupportedFormat'))
       return
     }
     if (isDirty && !window.confirm(t('confirm.openUnsaved'))) return
-    const xml = await file.text()
-    const result = validateXml(xml)
+    const content = await file.text()
+    const adapter = FORMAT_ADAPTERS[detected]
+    const result = adapter.validate(content)
     if (!result.valid) {
       setError(`${t('error.xmlValidation')}\n${result.errors.join('\n')}`)
       return
     }
     setError(null)
+    setFormat(detected)
     setFileDir(null)
-    resetBlocks(parseXmlToBlocks(xml))
+    resetBlocks(adapter.parse(content))
     setIsDirty(false)
-  }, [isDirty, resetBlocks, setFileDir, t])
+  }, [isDirty, resetBlocks, setFormat, setFileDir, t])
 
-  const handleSave = useCallback(async () => {
-    const saveResult = await window.electronAPI.saveFile()
+  const handleSaveAs = useCallback(async (targetFormat: DocumentFormat) => {
+    const saveResult = await window.electronAPI.saveFile(targetFormat)
     if (!saveResult) return
     const { filePath, fileDir: saveDir } = saveResult
-    const xml = await convertImgPathsToRelative(serializeBlocksToXml(blocks), saveDir)
-    const ok = await window.electronAPI.writeFile(filePath, xml)
+    const adapter = FORMAT_ADAPTERS[targetFormat]
+    let content = adapter.serialize(blocks)
+    if (targetFormat === 'xml') {
+      content = await convertImgPathsToRelative(content, saveDir)
+    }
+    const ok = await window.electronAPI.writeFile(filePath, content)
     if (ok) {
+      setFormat(targetFormat)
       setFileDir(saveDir)
       setIsDirty(false)
     }
-  }, [blocks, setFileDir])
+  }, [blocks, setFormat, setFileDir])
 
   return (
     <div
@@ -150,7 +161,8 @@ export default function App(): React.ReactElement {
         <div className="toolbar-actions">
           <button onClick={handleNew}>{t('toolbar.new')}</button>
           <button onClick={handleOpen}>{t('toolbar.open')}</button>
-          <button onClick={handleSave}>{t('toolbar.save')}</button>
+          <button onClick={() => handleSaveAs('xml')}>{t('toolbar.saveXml')}</button>
+          <button onClick={() => handleSaveAs('markdown')}>{t('toolbar.saveMarkdown')}</button>
           <div className="toolbar-divider" />
           <button onClick={undo} disabled={!canUndo} title={t('toolbar.undo.title')}>{t('toolbar.undo')}</button>
           <button onClick={redo} disabled={!canRedo} title={t('toolbar.redo.title')}>{t('toolbar.redo')}</button>

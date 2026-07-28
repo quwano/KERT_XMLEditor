@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { Lang } from '../i18n/translations'
 import { translations } from '../i18n/translations'
 
+export type { Lang }
+
 export type FontSize = 'small' | 'normal' | 'large' | 'xlarge'
 
 const FONT_SIZE_VALUES: Record<FontSize, string> = {

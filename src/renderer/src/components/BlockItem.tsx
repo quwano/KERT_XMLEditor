@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import type { Block, RichBlock, TableBlock, TableRow, SlateValue } from '../types/document'
+import type { Block, RichBlock, TableBlock, TableRow, MathBlock, SlateValue } from '../types/document'
 import { makeEmptySlateValue, EMPTY_SLATE_VALUE } from '../types/document'
 import RichTextEditor from './RichTextEditor'
+import MathFieldInput from './MathFieldInput'
 import { useSettings } from '../contexts/SettingsContext'
 
 interface Props {
@@ -31,6 +32,10 @@ export default function BlockItem({
     onChange(updated)
   }
 
+  const handleMathChange = ({ formula, mathml }: { formula: string; mathml: string }): void => {
+    onChange({ ...(block as MathBlock), formula, mathml })
+  }
+
   return (
     <div className={`block-item block-type-${block.type}${isDragging ? ' is-dragging' : ''}`}>
       <div className="block-controls">
@@ -49,6 +54,12 @@ export default function BlockItem({
       <div className="block-content">
         {block.type === 'table' ? (
           <TableEditor block={block as TableBlock} onChange={handleTableChange} />
+        ) : block.type === 'math-block' ? (
+          <MathFieldInput
+            formula={(block as MathBlock).formula}
+            onChange={handleMathChange}
+            placeholder={t('block.mathPlaceholder')}
+          />
         ) : (
           <RichTextEditor
             value={(block as RichBlock).content ?? EMPTY_SLATE_VALUE}

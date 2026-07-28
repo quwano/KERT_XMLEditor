@@ -3,6 +3,10 @@
 :root {
   --font-size-base: 14px;
   --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* MathLive's virtual keyboard panel defaults to z-index 105, which sits
+     below our chip-dialog-overlay (300) and would be unreachable/hidden
+     behind it when opened from a math-field inside that dialog. */
+  --keyboard-zindex: 2000;
 }
 
 body {
@@ -303,6 +307,13 @@ tr.selected-row td, tr.selected-row th { background: #e3f2fd !important; }
 .mark-u { text-decoration: underline; }
 .mark-sup { /* handled by <sup> tag */ }
 .mark-sub { /* handled by <sub> tag */ }
+.mark-frame {
+  border: 1px solid #64b5f6;
+  border-radius: 3px;
+  padding: 0 3px;
+  background: #e3f2fd;
+  color: #0d47a1;
+}
 
 /* ── Context Menu ── */
 .rte-context-menu {
@@ -407,11 +418,47 @@ tr.selected-row td, tr.selected-row th { background: #e3f2fd !important; }
   margin-bottom: 2px;
 }
 
+/* math-inline chip — purple, shows a statically-typeset formula preview */
+.chip-math-inline {
+  background: #f3e8ff;
+  border: 1px solid #d8b4fe;
+  color: #6b21a8;
+  padding: 0 6px;
+}
+.chip-math-markup {
+  display: inline-block;
+  vertical-align: middle;
+}
+.chip-math-empty {
+  font-size: 0.85em;
+  font-style: italic;
+  opacity: 0.7;
+}
+
 /* Mark overlays on chip elements */
 .chip-mark-g { font-weight: 700; background-color: #fff3cd !important; }
+.chip-mark-frame { border: 2px solid #64b5f6 !important; background-color: #e3f2fd !important; }
 .chip-mark-u { text-decoration: underline; }
 .chip-mark-sup { vertical-align: super; font-size: 0.75em; }
 .chip-mark-sub { vertical-align: sub; font-size: 0.75em; }
+
+/* ── MathFieldInput (MathLive <math-field> wrapper) ── */
+.math-field-input {
+  display: block;
+  width: 100%;
+}
+.math-field-input math-field {
+  display: block;
+  width: 100%;
+  border: 1px solid #ce93d8;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.95em;
+}
+.math-field-input math-field:focus-within {
+  border-color: #7b1fa2;
+  box-shadow: 0 0 0 2px rgba(123, 31, 162, 0.15);
+}
 
 /* ── ChipDialog ── */
 

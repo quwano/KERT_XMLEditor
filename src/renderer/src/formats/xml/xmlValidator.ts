@@ -3,12 +3,19 @@
  * Uses DOMParser only — no regex for structural checks.
  */
 
+const MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
+
+/** True for a <math> element in the MathML namespace (regardless of prefix). */
+function isMathMLElement(el: Element): boolean {
+  return el.namespaceURI === MATHML_NS && el.localName === 'math'
+}
+
 const VALID_ROOT_CHILDREN = new Set([
   'title1', 'title2', 'title3', 'title4', 'title5', 'p', 'table'
 ])
 
 const VALID_RICH_TEXT_CHILDREN = new Set([
-  'g', 'u', 'yomikae', 'ruby', 'sup', 'sub', 'img'
+  'g', 'frame', 'u', 'yomikae', 'ruby', 'sup', 'sub', 'img'
 ])
 
 export interface ValidationResult {
@@ -39,6 +46,9 @@ export function validateXml(xmlString: string): ValidationResult {
   }
 
   for (const child of Array.from(root.children)) {
+    // math-block: a MathML <math> element — its internal structure is not
+    // validated here (that's MathLive's responsibility at input time).
+    if (isMathMLElement(child)) continue
     if (!VALID_ROOT_CHILDREN.has(child.tagName)) {
       errors.push(`<root> の子要素として無効: <${child.tagName}>`)
       continue
@@ -83,6 +93,8 @@ function validateTr(trEl: Element, errors: string[]): void {
 
 function validateRichText(el: Element, errors: string[]): void {
   for (const child of Array.from(el.children)) {
+    // math-inline: a MathML <math> element — internal structure not validated here.
+    if (isMathMLElement(child)) continue
     if (!VALID_RICH_TEXT_CHILDREN.has(child.tagName)) {
       errors.push(`<${el.tagName}> の子要素として無効: <${child.tagName}>`)
       continue
@@ -94,7 +106,7 @@ function validateRichText(el: Element, errors: string[]): void {
         errors.push(`<${child.tagName}> はテキストのみ含むことができます（子要素不可）`)
       }
     } else {
-      // g, u, yomikae, ruby — rich_text を再帰的に検証
+      // g, frame, u, yomikae, ruby — rich_text を再帰的に検証
       validateRichText(child, errors)
     }
   }

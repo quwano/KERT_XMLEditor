@@ -11,7 +11,7 @@ import type { HistoryEditor } from 'slate-history'
 // ── Mark types ─────────────────────────────────────────────────────────────
 
 /** All inline mark keys that can be toggled on a text leaf. */
-export type MarkType = 'g' | 'u' | 'sup' | 'sub'
+export type MarkType = 'g' | 'frame' | 'u' | 'sup' | 'sub'
 
 // ── Custom text leaf ───────────────────────────────────────────────────────
 
@@ -19,6 +19,8 @@ export type CustomText = {
   text: string
   /** Bold / emphasis (maps to <g> in XML) */
   g?: boolean
+  /** Framed box (maps to <frame> in XML) */
+  frame?: boolean
   /** Underline (maps to <u>) */
   u?: boolean
   /** Superscript (maps to <sup>) */
@@ -35,7 +37,7 @@ export type CustomText = {
  * Atomic unit — click to edit. Internal marks are not preserved.
  */
 /** Mark properties that can be applied to chip elements (same as on text leaves). */
-type ChipMarks = { g?: boolean; u?: boolean; sup?: boolean; sub?: boolean }
+type ChipMarks = { g?: boolean; frame?: boolean; u?: boolean; sup?: boolean; sub?: boolean }
 
 export type YomikaeElement = {
   type: 'yomikae'
@@ -73,7 +75,22 @@ export type ImgElement = {
   children: CustomText[]
 } & ChipMarks
 
-export type ChipElement = YomikaeElement | RubyElement | ImgElement
+/**
+ * Inline math chip: contains both the LaTeX source and its MathML 3
+ * presentation-markup rendering, captured together from a MathLive
+ * <math-field> at edit time. Marks are not applicable (does not extend
+ * ChipMarks) — a formula cannot carry typographic marks like bold/frame.
+ */
+export type MathInlineElement = {
+  type: 'math-inline'
+  /** LaTeX source, e.g. from mf.getValue('latex') */
+  formula: string
+  /** MathML 3 presentation markup, e.g. from mf.getValue('math-ml') */
+  mathml: string
+  children: CustomText[]
+}
+
+export type ChipElement = YomikaeElement | RubyElement | ImgElement | MathInlineElement
 export type ChipType = ChipElement['type']
 
 // ── Custom elements ────────────────────────────────────────────────────────
@@ -87,7 +104,12 @@ export type ParagraphElement = {
   children: ParagraphChild[]
 }
 
-export type CustomElement = ParagraphElement | YomikaeElement | RubyElement | ImgElement
+export type CustomElement =
+  | ParagraphElement
+  | YomikaeElement
+  | RubyElement
+  | ImgElement
+  | MathInlineElement
 
 // ── Editor / value aliases ─────────────────────────────────────────────────
 

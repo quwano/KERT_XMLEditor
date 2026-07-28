@@ -1,10 +1,9 @@
 import React, { useState, useCallback } from 'react'
-import type { Block, BlockType, TableRow, TableCell } from '../types/document'
+import type { Block, BlockType, MathBlock, TableRow, TableCell } from '../types/document'
 import { makeEmptySlateValue } from '../types/document'
 import BlockItem from './BlockItem'
 import { useSettings } from '../contexts/SettingsContext'
-
-const ALL_BLOCK_TYPES: BlockType[] = ['title1', 'title2', 'title3', 'title4', 'title5', 'p', 'table']
+import { useFormat } from '../contexts/FormatContext'
 
 function genId(): string {
   return Math.random().toString(36).slice(2, 9)
@@ -17,6 +16,7 @@ interface Props {
 
 export default function BlockList({ blocks, onChange }: Props): React.ReactElement {
   const { t } = useSettings()
+  const { adapter } = useFormat()
   /** Index at which to insert the next block (null = no active separator). */
   const [insertAt, setInsertAt] = useState<number | null>(null)
   /** Whether the table-creation form is waiting for row/col input. */
@@ -37,6 +37,12 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
     if (insertAt === null) return
     if (type === 'table') {
       setPendingTable(true)
+      return
+    }
+    if (type === 'math-block') {
+      const mathBlock: MathBlock = { id: genId(), type: 'math-block', formula: '', mathml: '' }
+      insertBlock(mathBlock, insertAt)
+      setInsertAt(null)
       return
     }
     insertBlock({ id: genId(), type, content: makeEmptySlateValue() }, insertAt)
@@ -118,7 +124,7 @@ export default function BlockList({ blocks, onChange }: Props): React.ReactEleme
         <div className="insert-separator active">
           <div className="type-selector-bar">
             <span className="selector-label">{t('blockList.selectorLabel')}</span>
-            {ALL_BLOCK_TYPES.map(type => (
+            {adapter.insertableBlockTypes.map(type => (
               <button key={type} className="btn-type" onClick={() => handleTypeSelect(type)}>
                 {t(`block.${type}`)}
               </button>

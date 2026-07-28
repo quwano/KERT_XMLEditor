@@ -61,22 +61,37 @@ function createWindow(): void {
   }
 }
 
+type DocumentFormat = 'xml' | 'markdown'
+
+function detectFormat(filePath: string): DocumentFormat {
+  const ext = filePath.toLowerCase().split('.').pop() ?? ''
+  return ext === 'xml' ? 'xml' : 'markdown'
+}
+
+const OPEN_FILTERS = [
+  { name: 'XML Files', extensions: ['xml'] },
+  { name: 'Markdown Files', extensions: ['md', 'txt'] }
+]
+
+const SAVE_FILTER_BY_FORMAT: Record<DocumentFormat, { filter: Electron.FileFilter; defaultPath: string }> = {
+  xml: { filter: { name: 'XML Files', extensions: ['xml'] }, defaultPath: 'document.xml' },
+  markdown: { filter: { name: 'Markdown Files', extensions: ['md', 'txt'] }, defaultPath: 'document.md' }
+}
+
 ipcMain.handle('file:open', async () => {
   const result = await dialog.showOpenDialog({
-    filters: [{ name: 'XML Files', extensions: ['xml'] }],
+    filters: OPEN_FILTERS,
     properties: ['openFile']
   })
   if (result.canceled || result.filePaths.length === 0) return null
   const filePath = result.filePaths[0]
   const content = await readFile(filePath, 'utf-8')
-  return { content, fileDir: dirname(filePath) }
+  return { format: detectFormat(filePath), content, fileDir: dirname(filePath) }
 })
 
-ipcMain.handle('file:save', async () => {
-  const result = await dialog.showSaveDialog({
-    filters: [{ name: 'XML Files', extensions: ['xml'] }],
-    defaultPath: 'document.xml'
-  })
+ipcMain.handle('file:save', async (_, format: DocumentFormat) => {
+  const { filter, defaultPath } = SAVE_FILTER_BY_FORMAT[format]
+  const result = await dialog.showSaveDialog({ filters: [filter], defaultPath })
   if (result.canceled || !result.filePath) return null
   return { filePath: result.filePath, fileDir: dirname(result.filePath) }
 })
