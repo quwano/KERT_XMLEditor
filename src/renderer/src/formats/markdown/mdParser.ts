@@ -172,7 +172,12 @@ function serializeTable(block: TableBlock): string {
 
 export function parseMarkdownToBlocks(md: string): Block[] {
   const blocks: Block[] = []
-  const lines = md.split('\n')
+  // Normalize CRLF/CR to LF: a leftover trailing \r defeats `.`/`$` in the
+  // handler regexes below (both exclude line terminators), while isBlockStart's
+  // prefix-only checks still match — the same zero-progress stall as an
+  // isBlockStart/handler mismatch, but triggered by line-ending style instead
+  // of content.
+  const lines = md.replace(/\r\n?/g, '\n').split('\n')
   let i = 0
 
   while (i < lines.length) {
@@ -229,7 +234,7 @@ export function parseMarkdownToBlocks(md: string): Block[] {
 
     // Paragraph: accumulate lines until blank or new block-level element
     const paraLines: string[] = []
-    while (i < lines.length && lines[i].trim() !== '' && !isBlockStart(lines[i])) {
+    while (i < lines.length && lines[i].trim() !== '' && !isBlockStart(lines[i], lines[i + 1])) {
       paraLines.push(lines[i])
       i++
     }
@@ -241,12 +246,18 @@ export function parseMarkdownToBlocks(md: string): Block[] {
   return blocks
 }
 
-function isBlockStart(line: string): boolean {
+/**
+ * Mirrors the exact acceptance conditions of the block handlers above
+ * (heading / single-line math / GFM table) so that a line reported as a
+ * block start is always one a handler will actually consume. A mismatch
+ * here stalls the paragraph loop without advancing `i`, hanging the parser.
+ */
+function isBlockStart(line: string, nextLine?: string): boolean {
   return (
     /^#{1,5} /.test(line) ||
     line.trim() === '$$' ||
-    /^\$\$.*\$\$$/.test(line.trim()) ||
-    isTableLine(line)
+    /^\$\$(.+)\$\$$/.test(line) ||
+    (isTableLine(line) && nextLine !== undefined && isSeparatorLine(nextLine))
   )
 }
 

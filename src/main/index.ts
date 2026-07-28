@@ -69,6 +69,7 @@ function detectFormat(filePath: string): DocumentFormat {
 }
 
 const OPEN_FILTERS = [
+  { name: 'All Supported Files', extensions: ['xml', 'md', 'txt'] },
   { name: 'XML Files', extensions: ['xml'] },
   { name: 'Markdown Files', extensions: ['md', 'txt'] }
 ]
