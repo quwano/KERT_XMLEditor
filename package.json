@@ -1,6 +1,6 @@
 {
   "name": "kert-xml-editor",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "description": "XML editor for KERT documents",
   "main": "out/main/index.js",
   "scripts": {
