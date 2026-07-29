@@ -31,7 +31,7 @@
   },
   "build": {
     "appId": "com.kert.xml-editor",
-    "productName": "KERT XML Editor",
+    "productName": "KERT XML-Md Editor",
     "copyright": "2026 KUWANO KAZUYUKI",
     "icon": "resources/icon.png",
     "asar": true,

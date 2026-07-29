@@ -213,7 +213,7 @@ export default function App(): React.ReactElement {
       onDrop={handleDrop}
     >
       <header className="toolbar">
-        <span className="app-title">KERT XML Editor{isDirty ? ' *' : ''}</span>
+        <span className="app-title">KERT XML/Md Editor{isDirty ? ' *' : ''}</span>
         <div className="toolbar-actions">
           <button onClick={handleNew}>{t('toolbar.new')}</button>
           <button onClick={handleOpen}>{t('toolbar.open')}</button>
